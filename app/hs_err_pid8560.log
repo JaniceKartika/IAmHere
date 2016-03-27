@@ -1,0 +1,150 @@
+#
+# There is insufficient memory for the Java Runtime Environment to continue.
+# Native memory allocation (malloc) failed to allocate 1048576 bytes for AllocateHeap
+# Possible reasons:
+#   The system is out of physical RAM or swap space
+#   In 32 bit mode, the process size limit was hit
+# Possible solutions:
+#   Reduce memory load on the system
+#   Increase physical memory or swap space
+#   Check if swap backing store is full
+#   Use 64 bit Java on a 64 bit OS
+#   Decrease Java heap size (-Xmx/-Xms)
+#   Decrease number of Java threads
+#   Decrease Java thread stack sizes (-Xss)
+#   Set larger code cache with -XX:ReservedCodeCacheSize=
+# This output file may be truncated or incomplete.
+#
+#  Out of Memory Error (memory/allocation.inline.hpp:62), pid=8560, tid=5748
+#
+# JRE version:  (8.0_05-b13) (build )
+# Java VM: Java HotSpot(TM) 64-Bit Server VM (25.5-b02 mixed mode windows-amd64 compressed oops)
+# Failed to write core dump. Minidumps are not enabled by default on client versions of Windows
+#
+
+---------------  T H R E A D  ---------------
+
+Current thread (0x000000000207e800):  JavaThread "Unknown thread" [_thread_in_vm, id=5748, stack(0x0000000001f50000,0x0000000002050000)]
+
+Stack: [0x0000000001f50000,0x0000000002050000]
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+V  [jvm.dll+0x308dea]
+
+
+---------------  P R O C E S S  ---------------
+
+Java Threads: ( => current thread )
+
+Other Threads:
+
+=>0x000000000207e800 (exited) JavaThread "Unknown thread" [_thread_in_vm, id=5748, stack(0x0000000001f50000,0x0000000002050000)]
+
+VM state:not at safepoint (normal execution)
+
+VM Mutex/Monitor currently owned by a thread: None
+
+Heap:
+ PSYoungGen      total 1024K, used 20K [0x00000000eab00000, 0x00000000eac80000, 0x0000000100000000)
+  eden space 512K, 4% used [0x00000000eab00000,0x00000000eab05288,0x00000000eab80000)
+  from space 512K, 0% used [0x00000000eac00000,0x00000000eac00000,0x00000000eac80000)
+  to   space 512K, 0% used [0x00000000eab80000,0x00000000eab80000,0x00000000eac00000)
+ ParOldGen       total 64000K, used 0K [0x00000000c0000000, 0x00000000c3e80000, 0x00000000eab00000)
+  object space 64000K, 0% used [0x00000000c0000000,0x00000000c0000000,0x00000000c3e80000)
+ Metaspace       used 673K, capacity 4480K, committed 4480K, reserved 1056768K
+  class space    used 66K, capacity 384K, committed 384K, reserved 1048576K
+
+Card table byte_map: [0x0000000011540000,0x0000000011750000] byte_map_base: 0x0000000010f40000
+
+Marking Bits: (ParMarkBitMap*) 0x0000000076e113b0
+ Begin Bits: [0x0000000011cb0000, 0x0000000012cb0000)
+ End Bits:   [0x0000000012cb0000, 0x0000000013cb0000)
+
+Polling page: 0x0000000001e50000
+
+CodeCache: size=245760Kb used=327Kb max_used=327Kb free=245432Kb
+ bounds [0x0000000002180000, 0x00000000023f0000, 0x0000000011180000]
+ total_blobs=56 nmethods=0 adapters=37
+ compilation: enabled
+
+Compilation events (0 events):
+No events
+
+GC Heap History (0 events):
+No events
+
+Deoptimization events (0 events):
+No events
+
+Internal exceptions (0 events):
+No events
+
+Events (10 events):
+Event: 0.021 loading class java/lang/Short
+Event: 0.021 loading class java/lang/Short done
+Event: 0.021 loading class java/lang/Integer
+Event: 0.021 loading class java/lang/Integer done
+Event: 0.021 loading class java/lang/Long
+Event: 0.021 loading class java/lang/Long done
+Event: 0.022 loading class java/lang/NullPointerException
+Event: 0.022 loading class java/lang/NullPointerException done
+Event: 0.022 loading class java/lang/ArithmeticException
+Event: 0.022 loading class java/lang/ArithmeticException done
+
+
+Dynamic libraries:
+0x00007ff6989f0000 - 0x00007ff698a24000 	C:\Program Files\Java\jdk1.8.0_05\bin\java.exe
+0x00007ffb97c90000 - 0x00007ffb97e51000 	C:\WINDOWS\SYSTEM32\ntdll.dll
+0x00007ffb97790000 - 0x00007ffb9783d000 	C:\WINDOWS\system32\KERNEL32.DLL
+0x00007ffb95180000 - 0x00007ffb9535d000 	C:\WINDOWS\system32\KERNELBASE.dll
+0x00007ffb97be0000 - 0x00007ffb97c86000 	C:\WINDOWS\system32\ADVAPI32.dll
+0x00007ffb97500000 - 0x00007ffb9759d000 	C:\WINDOWS\system32\msvcrt.dll
+0x00007ffb95c40000 - 0x00007ffb95c9b000 	C:\WINDOWS\system32\sechost.dll
+0x00007ffb95660000 - 0x00007ffb95786000 	C:\WINDOWS\system32\RPCRT4.dll
+0x00007ffb95360000 - 0x00007ffb954ae000 	C:\WINDOWS\system32\USER32.dll
+0x00007ffb954d0000 - 0x00007ffb95656000 	C:\WINDOWS\system32\GDI32.dll
+0x00007ffb88050000 - 0x00007ffb882c4000 	C:\WINDOWS\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.10240.16384_none_f41f7b285750ef43\COMCTL32.dll
+0x00007ffb97750000 - 0x00007ffb97786000 	C:\WINDOWS\system32\IMM32.DLL
+0x00007ffb97340000 - 0x00007ffb9749c000 	C:\WINDOWS\system32\MSCTF.dll
+0x0000000076360000 - 0x0000000076432000 	C:\Program Files\Java\jdk1.8.0_05\jre\bin\msvcr100.dll
+0x0000000076660000 - 0x0000000076e8a000 	C:\Program Files\Java\jdk1.8.0_05\jre\bin\server\jvm.dll
+0x00007ffb97af0000 - 0x00007ffb97af8000 	C:\WINDOWS\system32\PSAPI.DLL
+0x00007ffb92a50000 - 0x00007ffb92a73000 	C:\WINDOWS\SYSTEM32\WINMM.dll
+0x00007ffb8a5c0000 - 0x00007ffb8a5c9000 	C:\WINDOWS\SYSTEM32\WSOCK32.dll
+0x00007ffb97a70000 - 0x00007ffb97ad9000 	C:\WINDOWS\system32\WS2_32.dll
+0x00007ffb929f0000 - 0x00007ffb92a1c000 	C:\WINDOWS\SYSTEM32\WINMMBASE.dll
+0x00007ffb95790000 - 0x00007ffb95798000 	C:\WINDOWS\system32\NSI.dll
+0x00007ffb95080000 - 0x00007ffb950c4000 	C:\WINDOWS\system32\cfgmgr32.dll
+0x00007ffb92f90000 - 0x00007ffb92fb7000 	C:\WINDOWS\SYSTEM32\DEVOBJ.dll
+0x0000000051b90000 - 0x0000000051b9f000 	C:\Program Files\Java\jdk1.8.0_05\jre\bin\verify.dll
+0x0000000051b60000 - 0x0000000051b88000 	C:\Program Files\Java\jdk1.8.0_05\jre\bin\java.dll
+0x0000000051b40000 - 0x0000000051b56000 	C:\Program Files\Java\jdk1.8.0_05\jre\bin\zip.dll
+0x00007ffb8bff0000 - 0x00007ffb8c17a000 	C:\WINDOWS\SYSTEM32\dbghelp.dll
+
+VM Arguments:
+jvm_args: -Xmx1024M -Dfile.encoding=windows-1252 -Duser.country=US -Duser.language=en -Duser.variant 
+java_command: com.android.dx.command.Main --dex --num-threads=4 --output C:\StudioProject\IAmHere\app\build\intermediates\dex\debug C:\StudioProject\IAmHere\app\build\intermediates\classes\debug C:\StudioProject\IAmHere\app\build\intermediates\pre-dexed\debug\support-annotations-23.1.0-3e624abdc2016802271d94229e64ebba6d234477.jar C:\StudioProject\IAmHere\app\build\intermediates\pre-dexed\debug\internal_impl-23.1.0-0f8e573ba0cf2f3661e36a110270406127943f44.jar C:\StudioProject\IAmHere\app\build\intermediates\pre-dexed\debug\classes-71e15435f0b5715e445d18fc81e4aed110d50274.jar C:\StudioProject\IAmHere\app\build\intermediates\pre-dexed\debug\classes-447a73db4308147b80bab76757af8a861e042840.jar C:\StudioProject\IAmHere\app\build\intermediates\pre-dexed\debug\classes-22b431694630f6aadfdd08942f59fcbc2f6e17aa.jar
+java_class_path (initial): C:\Android\build-tools\23.0.1\lib\dx.jar
+Launcher Type: SUN_STANDARD
+
+Environment Variables:
+CLASSPATH=C:\Program Files\Java\jdk1.8.0_05\lib\tools.jar;.
+PATH=C:\Program Files (x86)\Intel\iCLS Client\;C:\Program Files\Intel\iCLS Client\;C:\Program Files (x86)\AMD APP\bin\x86_64;C:\Program Files (x86)\AMD APP\bin\x86;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\Program Files (x86)\ATI Technologies\ATI.ACE\Core-Static;C:\Program Files\Intel\Intel(R) Management Engine Components\DAL;C:\Program Files\Intel\Intel(R) Management Engine Components\IPT;C:\Program Files (x86)\Intel\Intel(R) Management Engine Components\DAL;C:\Program Files (x86)\Intel\Intel(R) Management Engine Components\IPT;C:\Program Files\Sony\VAIO Improvement\;C:\Program Files (x86)\Sony\VAIO Startup Setting Tool;C:\Program Files\MATLAB\R2014a\runtime\win64;C:\Program Files\MATLAB\R2014a\bin;C:\Program Files\MATLAB\R2014a\polyspace\bin;C:\Program Files (x86)\Windows Live\Shared;C:\TwinCAT\Common32;C:\TwinCAT\Common64;C:\WINDOWS\system32\config\systemprofile\.dnx\bin;C:\Program Files\Microsoft DNX\Dnvm\;C:\Program Files\nodejs\;C:\Program Files (x86)\MySQL\MySQL Fabric 1.5 & MySQL Utilities 1.5\;C:\Program Files (x86)\MySQL\MySQL Fabric 1.5 & MySQL Utilities 1.5\Doctrine extensions for PHP\;C:\Program Files (x86)\Dev-Cpp\MinGW64\bin;C:\Modeltech_pe_edu_10.4\win32pe_edu;C:\Android\tools;C:\Android\platform-tools;C:\Users\Janice Kartika\AppData\Roaming\npm;C:\Modeltech_pe_edu_10.4a\win32pe_edu
+USERNAME=Janice Kartika
+OS=Windows_NT
+PROCESSOR_IDENTIFIER=Intel64 Family 6 Model 58 Stepping 9, GenuineIntel
+
+
+
+---------------  S Y S T E M  ---------------
+
+OS: Windows 8.1 , 64 bit Build 9600 
+
+CPU:total 4 (2 cores per cpu, 2 threads per core) family 6 model 58 stepping 9, cmov, cx8, fxsr, mmx, sse, sse2, sse3, ssse3, sse4.1, sse4.2, popcnt, avx, aes, clmul, erms, ht, tsc, tscinvbit
+
+Memory: 4k page, physical 4133264k(224928k free), swap 16716176k(5120k free)
+
+vm_info: Java HotSpot(TM) 64-Bit Server VM (25.5-b02) for windows-amd64 JRE (1.8.0_05-b13), built on Mar 18 2014 01:08:39 by "java_re" with MS VC++ 10.0 (VS2010)
+
+time: Fri Dec 18 02:06:21 2015
+elapsed time: 0 seconds
+
