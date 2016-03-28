@@ -1,28 +1,10 @@
 package com.jkm.android.iamhere;
 
-import android.app.Dialog;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothSocket;
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.DialogInterface;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.IntentSender;
 import android.location.Location;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
-import android.support.v7.app.AlertDialog;
 import android.util.Log;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.Button;
-import android.widget.ListView;
-import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -36,21 +18,12 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.Set;
-import java.util.UUID;
-
-public class MapsActivity extends FragmentActivity implements
-        GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener,
-        LocationListener, GoogleMap.OnMapClickListener {
+public class MapsActivity extends FragmentActivity implements GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener, LocationListener, GoogleMap.OnMapClickListener {
 
     public static final String TAG = MapsActivity.class.getSimpleName();
 
-    /*
-     * Define a request code to send to Google Play services
+    /* Define a request code to send to Google Play services
      * This code is returned in Activity.onActivityResult
      */
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
@@ -60,7 +33,6 @@ public class MapsActivity extends FragmentActivity implements
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
 
-    //private final static int earthRad = 6371000;
     double currentLat, currentLong, destinationLat, destinationLong;
     float distance, bearing;
     int intDistance, intBearing;
@@ -72,28 +44,10 @@ public class MapsActivity extends FragmentActivity implements
     LatLng currentLatLng, desLatLng;
     Marker startMarker, destinationMarker;
 
-    BluetoothAdapter btAdapter;
-    BluetoothDevice btDevice;
-    BluetoothSocket btSocket;
-    OutputStream btOutputStream;
-    InputStream btInputStream;
-    ListView myListView;
-    ArrayAdapter<String> BTArrayAdapter;
-    Set<BluetoothDevice> pairedDevices;
-    Dialog dialog;
-
-    Button btConnect, btReset;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
-
-        btConnect = (Button) findViewById(R.id.bt_connect);
-        btReset = (Button) findViewById(R.id.bt_reset);
-
-        btAdapter = BluetoothAdapter.getDefaultAdapter();
-        checkBTState();
 
         setUpMapIfNeeded();
 
@@ -115,34 +69,12 @@ public class MapsActivity extends FragmentActivity implements
 
         destination.setLatitude(0);
         destination.setLongitude(0);
-
-        btConnect.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (btConnect.getText().equals("Connect")) {
-                    if (!btAdapter.isEnabled()) {
-                        Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                        startActivityForResult(enableBtIntent, 1);
-                    } else {
-                        showBTDialog();
-                    }
-                } else if (btConnect.getText().equals("Disconnect")) {
-                    btConnect.setText("Connect");
-                    cancel();
-                }
-            }
-        });
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         Log.v("MyMap", "Im on onResume");
-
-        IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_ACL_CONNECTED);
-        filter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
-        registerReceiver(receiver, filter);
-
         setUpMapIfNeeded();
         mGoogleApiClient.connect();
     }
@@ -151,7 +83,6 @@ public class MapsActivity extends FragmentActivity implements
     protected void onPause() {
         super.onPause();
         Log.v("MyMap", "Im on onPause");
-        unregisterReceiver(receiver);
         if (mGoogleApiClient.isConnected()) {
             LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
             mGoogleApiClient.disconnect();
@@ -225,8 +156,6 @@ public class MapsActivity extends FragmentActivity implements
             intDistance = (int) distance;
             intBearing = (int) bearing;
             sendData = "#" + intDistance + "," + intBearing + ",0" + "\n";
-            if (btConnect.getText().equals("Disconnect"))
-                write(sendData.getBytes());
             Log.v("MyMap", "data = " + sendData);
         }
 
@@ -327,8 +256,6 @@ public class MapsActivity extends FragmentActivity implements
             intDistance = (int) distance;
             intBearing = (int) bearing;
             sendData = "#" + intDistance + "," + intBearing + ",1" + "\n";
-            if (btConnect.getText().equals("Disconnect"))
-                write(sendData.getBytes());
             Log.v("MyMap", "data = " + sendData);
         }
 
@@ -337,109 +264,5 @@ public class MapsActivity extends FragmentActivity implements
 
         MarkerOptions markerOptions = new MarkerOptions().position(desLatLng).title("Destination");
         destinationMarker = mMap.addMarker(markerOptions);
-    }
-
-    private final BroadcastReceiver receiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (BluetoothDevice.ACTION_ACL_CONNECTED.equals(action)) {
-                btConnect.setText("Disconnect");
-            } else if (BluetoothDevice.ACTION_ACL_DISCONNECTED.equals(action)) {
-                btConnect.setText("Connect");
-            }
-        }
-    };
-
-    private void checkBTState() {
-        if (btAdapter == null) {
-            Toast.makeText(getApplicationContext(), "Fatal Error - No Bluetooth supported", Toast.LENGTH_LONG).show();
-            finish();
-        } else {
-            if (btAdapter.isEnabled()) {
-                Log.d("BTstatus", "Bluetooth ON");
-            } else {
-                Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                startActivityForResult(enableBtIntent, 1);
-            }
-        }
-    }
-
-    private void write(byte[] bytes) {
-        try {
-            btOutputStream.write(bytes);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void cancel() {
-        try {
-            btOutputStream.close();
-            btSocket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void connectClient() throws IOException {
-        UUID stdUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
-        btSocket = btDevice.createRfcommSocketToServiceRecord(stdUUID);
-        btSocket.connect();
-        btOutputStream = btSocket.getOutputStream();
-        btInputStream = btSocket.getInputStream();
-    }
-
-    private void showBTDialog() {
-        final AlertDialog.Builder popDialog = new AlertDialog.Builder(this);
-        final LayoutInflater inflater = (LayoutInflater) this.getSystemService(LAYOUT_INFLATER_SERVICE);
-        final View Viewlayout = inflater.inflate(R.layout.bluetooth_list, (ViewGroup) findViewById(R.id.bt_list));
-
-        popDialog.setTitle("Paired Bluetooth device(s)");
-        popDialog.setView(Viewlayout);
-
-        // create the arrayAdapter that contains the BTDevices, and set it to a
-        // ListView
-        myListView = (ListView) Viewlayout.findViewById(R.id.BTList);
-        BTArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1);
-        myListView.setAdapter(BTArrayAdapter);
-
-        // get paired devices
-        pairedDevices = btAdapter.getBondedDevices();
-
-        // put it's one to the adapter
-        for (BluetoothDevice device : pairedDevices)
-            BTArrayAdapter.add(device.getName());
-
-        // Button
-        popDialog.setPositiveButton("OK",
-                new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        dialog.dismiss();
-                    }
-                });
-
-        // Create pop up and show
-        dialog = popDialog.create();
-
-        myListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                dialog.dismiss();
-                String name = parent.getItemAtPosition(position).toString();
-                for (BluetoothDevice device : pairedDevices) {
-                    if (device.getName().equals(name)) {
-                        btDevice = device;
-                        try {
-                            connectClient();
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }
-            }
-        });
-        dialog.show();
     }
 }
