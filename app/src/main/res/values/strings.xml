@@ -1,10 +1,12 @@
 <resources>
     <string name="app_name">Find My Way</string>
-    <string name="title_activity_maps">MyMap</string>
+    <string name="title_activity_maps">Find My Way</string>
     <string name="sign_up">Sign Up</string>
     <string name="phone_verification">Phone Verification</string>
     <string name="hardware_verification">Hardware Verification</string>
     <string name="log_in">Log In</string>
+
+    <string name="search">Search</string>
 
     <string name="welcome">Welcome!</string>
     <string name="content1">First thing first. Create your own account.</string>
