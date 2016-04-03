@@ -1,9 +1,12 @@
 package com.jkm.android.iamhere;
 
+import android.Manifest;
 import android.content.Intent;
 import android.content.IntentSender;
+import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -18,18 +21,21 @@ import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.places.AutocompleteFilter;
 import com.google.android.gms.location.places.Place;
 import com.google.android.gms.location.places.Places;
 import com.google.android.gms.location.places.ui.PlaceAutocomplete;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 public class MapsActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener, LocationListener, GoogleMap.OnMapClickListener {
+        GoogleApiClient.OnConnectionFailedListener, LocationListener, GoogleMap.OnMapClickListener, OnMapReadyCallback {
 
     public static final String TAG = MapsActivity.class.getSimpleName();
 
@@ -45,15 +51,13 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
     private LocationRequest mLocationRequest;
 
     double currentLat, currentLong, destinationLat, destinationLong;
-    float distance, bearing;
-    int intDistance, intBearing;
-    String sendData;
     int count = 0;
 
     Location destination = new Location("Destination");
     Location startingPoint = new Location("Starting Point");
     LatLng currentLatLng, desLatLng;
     Marker startMarker, destinationMarker;
+    float zoomLevel = (float) 16.0; //This goes up to 21
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -65,7 +69,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
 
         setUpMapIfNeeded();
 
-        Log.v("MyMap", "Im on onCreate");
+        Log.v(TAG, "Im on onCreate");
 
         mGoogleApiClient = new GoogleApiClient
                 .Builder(this)
@@ -82,8 +86,6 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
                 .setInterval(10 * 1000)        // 10 seconds, in milliseconds
                 .setFastestInterval(1000); // 1 second, in milliseconds
 
-        mMap.setOnMapClickListener(this);
-
         destination.setLatitude(0);
         destination.setLongitude(0);
     }
@@ -91,7 +93,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
     @Override
     protected void onResume() {
         super.onResume();
-        Log.v("MyMap", "Im on onResume");
+        Log.v(TAG, "Im on onResume");
         setUpMapIfNeeded();
         mGoogleApiClient.connect();
     }
@@ -99,7 +101,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
     @Override
     protected void onPause() {
         super.onPause();
-        Log.v("MyMap", "Im on onPause");
+        Log.v(TAG, "Im on onPause");
         if (mGoogleApiClient.isConnected()) {
             LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
             mGoogleApiClient.disconnect();
@@ -109,7 +111,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        Log.v("MyMap", "Im on onDestroy");
+        Log.v(TAG, "Im on onDestroy");
     }
 
     /**
@@ -131,12 +133,20 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
         // Do a null check to confirm that we have not already instantiated the map.
         if (mMap == null) {
             // Try to obtain the map from the SupportMapFragment.
-            mMap = ((SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map)).getMap();
+            SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+            mapFragment.getMapAsync(this);
             // Check if we were successful in obtaining the map.
             if (mMap != null) {
-                setUpMap();
+                startMarker = mMap.addMarker(new MarkerOptions().position(new LatLng(0, 0)).title("Marker"));
             }
         }
+    }
+
+    @Override
+    public void onMapReady(GoogleMap googleMap) {
+        mMap = googleMap;
+        setUpMap();
+        mMap.setOnMapClickListener(this);
     }
 
     /**
@@ -146,11 +156,15 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
      * This should only be called once and when we are sure that {@link #mMap} is not null.
      */
     private void setUpMap() {
-        startMarker = mMap.addMarker(new MarkerOptions().position(new LatLng(0, 0)).title("Marker"));
+        mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+            mMap.setMyLocationEnabled(true);
+        mMap.setTrafficEnabled(true);
+        mMap.getUiSettings().setZoomControlsEnabled(true);
     }
 
     private void handleNewLocation(Location location) {
-        float zoomLevel = (float) 16.0; //This goes up to 21
         //Log.d(TAG, location.toString());
         count++;
 
@@ -161,27 +175,19 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
         startingPoint.setLongitude(currentLong);
 
         currentLatLng = new LatLng(currentLat, currentLong);
-        Log.v("MyMap", "starting = " + currentLatLng.toString());
+        Log.v(TAG, "starting = " + currentLatLng.toString());
 
-        if (destination.getLatitude() != 0 && destination.getLongitude() != 0) {
-            distance = startingPoint.distanceTo(destination);
-            Log.v("MyMap", "distance = " + distance);
+        //TODO: send data to hardware
 
-            bearing = getBearing(currentLatLng, desLatLng);
-            Log.v("MyMap", "bearing = " + bearing);
-
-            intDistance = (int) distance;
-            intBearing = (int) bearing;
-            sendData = "#" + intDistance + "," + intBearing + ",0" + "\n";
-            Log.v("MyMap", "data = " + sendData);
-        }
-
-        if (count > 1) {
-            //mMap.addMarker(new MarkerOptions().position(new LatLng(currentLatitude, currentLongitude)).title("Current Location"));
-            MarkerOptions options = new MarkerOptions().position(currentLatLng).title("I am here!");
-            if (startMarker != null)
-                startMarker.remove();
-            startMarker = mMap.addMarker(options);
+        //mMap.addMarker(new MarkerOptions().position(new LatLng(currentLatitude, currentLongitude)).title("Current Location"));
+        MarkerOptions options = new MarkerOptions()
+                .position(currentLatLng)
+                .title("I am here!")
+                .icon(BitmapDescriptorFactory.fromResource(R.drawable.start_icon));
+        if (startMarker != null)
+            startMarker.remove();
+        startMarker = mMap.addMarker(options);
+        if (count == 1) {
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, zoomLevel));
             //mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
         }
@@ -203,9 +209,12 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
 
     @Override
     public void onConnected(Bundle bundle) {
-        Location location = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
-        LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
-        handleNewLocation(location);
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            Location location = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+            handleNewLocation(location);
+        }
     }
 
     @Override
@@ -261,26 +270,37 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
 
         //Convert Location to LatLng
         desLatLng = new LatLng(destinationLat, destinationLong);
-        Log.v("MyMap", "destination = " + desLatLng.toString());
+        Log.v(TAG, "destination = " + desLatLng.toString());
 
-        if (destination.getLatitude() != 0 && destination.getLongitude() != 0) {
-            distance = startingPoint.distanceTo(destination);
-            Log.v("MyMap", "distance = " + distance);
-
-            bearing = getBearing(currentLatLng, desLatLng);
-            Log.v("MyMap", "bearing = " + bearing);
-
-            intDistance = (int) distance;
-            intBearing = (int) bearing;
-            sendData = "#" + intDistance + "," + intBearing + ",1" + "\n";
-            Log.v("MyMap", "data = " + sendData);
-        }
+        //TODO: send data to hardware
 
         if (destinationMarker != null)
             destinationMarker.remove();
 
-        MarkerOptions markerOptions = new MarkerOptions().position(desLatLng).title("Destination");
+        MarkerOptions markerOptions = new MarkerOptions()
+                .position(desLatLng)
+                .title("Destination")
+                .draggable(true)
+                .icon(BitmapDescriptorFactory.fromResource(R.drawable.destination_icon));
         destinationMarker = mMap.addMarker(markerOptions);
+    }
+
+    private void SendDataToHardware(int SendCode) {
+        String sendData;
+        float distance, bearing;
+        int intDistance, intBearing;
+        if (destination.getLatitude() != 0 && destination.getLongitude() != 0) {
+            distance = startingPoint.distanceTo(destination);
+            Log.v(TAG, "distance = " + distance);
+
+            bearing = getBearing(currentLatLng, desLatLng);
+            Log.v(TAG, "bearing = " + bearing);
+
+            intDistance = (int) distance;
+            intBearing = (int) bearing;
+            sendData = "#" + intDistance + "," + intBearing + "," + SendCode + "\n";
+            Log.v(TAG, "data = " + sendData);
+        }
     }
 
     @Override
@@ -310,10 +330,8 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
             Intent intent = new PlaceAutocomplete.IntentBuilder(PlaceAutocomplete.MODE_OVERLAY)
                     .build(this);
             startActivityForResult(intent, PLACE_AUTOCOMPLETE_REQUEST_CODE);
-        } catch (GooglePlayServicesRepairableException e) {
-            // TODO: Handle the error.
-        } catch (GooglePlayServicesNotAvailableException e) {
-            // TODO: Handle the error.
+        } catch (GooglePlayServicesRepairableException | GooglePlayServicesNotAvailableException e) {
+            Log.e(TAG, "Error = " + e);
         }
     }
 
@@ -322,14 +340,24 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
         if (requestCode == PLACE_AUTOCOMPLETE_REQUEST_CODE) {
             if (resultCode == RESULT_OK) {
                 Place place = PlaceAutocomplete.getPlace(this, data);
-                Log.i(TAG, "Place: " + place.getName());
+                Log.i(TAG, "Place: " + place.getName() + ", LatLng = " + place.getLatLng());
+
+                //TODO: send data to hardware
+
+                if (destinationMarker != null)
+                    destinationMarker.remove();
+                MarkerOptions markerOptions = new MarkerOptions()
+                        .position(place.getLatLng())
+                        .title("Destination")
+                        .draggable(true)
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.destination_icon));
+                destinationMarker = mMap.addMarker(markerOptions);
+                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(place.getLatLng(), zoomLevel));
             } else if (resultCode == PlaceAutocomplete.RESULT_ERROR) {
                 Status status = PlaceAutocomplete.getStatus(this, data);
-                // TODO: Handle the error.
                 Log.i(TAG, "status = " + status.getStatusMessage());
-
             } else if (resultCode == RESULT_CANCELED) {
-                // The user canceled the operation.
+                Log.i(TAG, "status = canceled");
             }
         }
     }
