@@ -1,6 +1,7 @@
 package com.jkm.android.iamhere;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageManager;
@@ -17,11 +18,15 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
 import com.google.android.gms.common.GooglePlayServicesRepairableException;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.PendingResult;
+import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
-import com.google.android.gms.location.places.AutocompleteFilter;
+import com.google.android.gms.location.LocationSettingsRequest;
+import com.google.android.gms.location.LocationSettingsResult;
+import com.google.android.gms.location.LocationSettingsStatusCodes;
 import com.google.android.gms.location.places.Place;
 import com.google.android.gms.location.places.Places;
 import com.google.android.gms.location.places.ui.PlaceAutocomplete;
@@ -44,6 +49,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
      */
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
     private final static int PLACE_AUTOCOMPLETE_REQUEST_CODE = 1;
+    protected static final int REQUEST_CHECK_SETTINGS = 1000;
 
     private GoogleMap mMap; // Might be null if Google Play services APK is not available.
 
@@ -91,6 +97,13 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        Log.v(TAG, "Im on onStart");
+        SettingsRequest();
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         Log.v(TAG, "Im on onResume");
@@ -112,6 +125,43 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
     protected void onDestroy() {
         super.onDestroy();
         Log.v(TAG, "Im on onDestroy");
+    }
+
+    public void SettingsRequest() {
+        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder()
+                .addLocationRequest(mLocationRequest);
+        builder.setAlwaysShow(true);
+
+        PendingResult<LocationSettingsResult> result =
+                LocationServices.SettingsApi.checkLocationSettings(mGoogleApiClient, builder.build());
+        result.setResultCallback(new ResultCallback<LocationSettingsResult>() {
+            @Override
+            public void onResult(LocationSettingsResult result) {
+                final Status status = result.getStatus();
+                //final LocationSettingsStates state = result.getLocationSettingsStates();
+                switch (status.getStatusCode()) {
+                    case LocationSettingsStatusCodes.SUCCESS:
+                        // All location settings are satisfied. The client can initialize location
+                        // requests here.
+                        break;
+                    case LocationSettingsStatusCodes.RESOLUTION_REQUIRED:
+                        // Location settings are not satisfied. But could be fixed by showing the user
+                        // a dialog.
+                        try {
+                            // Show the dialog by calling startResolutionForResult(),
+                            // and check the result in onActivityResult().
+                            status.startResolutionForResult(MapsActivity.this, REQUEST_CHECK_SETTINGS);
+                        } catch (IntentSender.SendIntentException e) {
+                            // Ignore the error.
+                        }
+                        break;
+                    case LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE:
+                        // Location settings are not satisfied. However, we have no way to fix the
+                        // settings so we won't show the dialog.
+                        break;
+                }
+            }
+        });
     }
 
     /**
@@ -358,6 +408,14 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
                 Log.i(TAG, "status = " + status.getStatusMessage());
             } else if (resultCode == RESULT_CANCELED) {
                 Log.i(TAG, "status = canceled");
+            }
+        }
+
+        if (requestCode == REQUEST_CHECK_SETTINGS) {
+            if (resultCode == Activity.RESULT_OK) {
+                Log.i(TAG, "Answer: OK");
+            } else if (resultCode == Activity.RESULT_CANCELED) {
+                Log.i(TAG, "Answer: CANCEL");
             }
         }
     }
