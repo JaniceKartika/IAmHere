@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.location.Location;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -39,14 +40,21 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
-public class MapsActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener, LocationListener, GoogleMap.OnMapClickListener, OnMapReadyCallback {
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.HashMap;
+
+public class MapsActivity extends AppCompatActivity implements
+        GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener,
+        LocationListener,
+        GoogleMap.OnMapClickListener,
+        OnMapReadyCallback {
 
     public static final String TAG = MapsActivity.class.getSimpleName();
 
-    /* Define a request code to send to Google Play services
-     * This code is returned in Activity.onActivityResult
-     */
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
     private final static int PLACE_AUTOCOMPLETE_REQUEST_CODE = 1;
     protected static final int REQUEST_CHECK_SETTINGS = 1000;
@@ -168,11 +176,11 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
      * Sets up the map if it is possible to do so (i.e., the Google Play services APK is correctly
      * installed) and the map has not already been instantiated.. This will ensure that we only ever
      * call {@link #setUpMap()} once when {@link #mMap} is not null.
-     * <p/>
+     * <p>
      * If it isn't installed {@link SupportMapFragment} (and
      * {@link com.google.android.gms.maps.MapView MapView}) will show a prompt for the user to
      * install/update the Google Play services APK on their device.
-     * <p/>
+     * <p>
      * A user can return to this FragmentActivity after following the prompt and correctly
      * installing/updating/enabling the Google Play services. Since the FragmentActivity may not
      * have been completely destroyed during this process (it is likely that it would only be
@@ -199,12 +207,6 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
         mMap.setOnMapClickListener(this);
     }
 
-    /**
-     * This is where we can add markers or lines, add listeners or move the camera. In this case, we
-     * just add a marker near Africa.
-     * <p/>
-     * This should only be called once and when we are sure that {@link #mMap} is not null.
-     */
     private void setUpMap() {
         mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -310,8 +312,6 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
     public void onMapClick(LatLng latLng) {
         //myMap.addMarker(new MarkerOptions().position(point).title(point.toString()));
 
-        //The code below demonstrate how to convert between LatLng and Location
-
         destinationLat = latLng.latitude;
         destinationLong = latLng.longitude;
 
@@ -355,7 +355,6 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
     }
@@ -366,8 +365,6 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
         if (id == R.id.search) {
             callPlaceAutocompleteActivityIntent();
             return true;
@@ -377,8 +374,7 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
 
     private void callPlaceAutocompleteActivityIntent() {
         try {
-            Intent intent = new PlaceAutocomplete.IntentBuilder(PlaceAutocomplete.MODE_OVERLAY)
-                    .build(this);
+            Intent intent = new PlaceAutocomplete.IntentBuilder(PlaceAutocomplete.MODE_OVERLAY).build(this);
             startActivityForResult(intent, PLACE_AUTOCOMPLETE_REQUEST_CODE);
         } catch (GooglePlayServicesRepairableException | GooglePlayServicesNotAvailableException e) {
             Log.e(TAG, "Error = " + e);
@@ -391,6 +387,14 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
             if (resultCode == RESULT_OK) {
                 Place place = PlaceAutocomplete.getPlace(this, data);
                 Log.i(TAG, "Place: " + place.getName() + ", LatLng = " + place.getLatLng());
+                destinationLat = place.getLatLng().latitude;
+                destinationLong = place.getLatLng().longitude;
+
+                new GetAsync().execute(
+                        String.valueOf(currentLat),
+                        String.valueOf(currentLong),
+                        String.valueOf(destinationLat),
+                        String.valueOf(destinationLong));
 
                 //TODO: send data to hardware
 
@@ -417,6 +421,95 @@ public class MapsActivity extends AppCompatActivity implements GoogleApiClient.C
             } else if (resultCode == Activity.RESULT_CANCELED) {
                 Log.i(TAG, "Answer: CANCEL");
             }
+        }
+    }
+
+    public class GetAsync extends AsyncTask<String, String, JSONObject> {
+        JSONParser jsonParser = new JSONParser();
+        private static final String BASE_URL = "https://maps.googleapis.com/maps/api/directions/json";
+        private static final String ORIGIN_PARAM = "origin";
+        private static final String DESTINATION_PARAM = "destination";
+        private static final String AVOID_PARAM = "avoid";
+        private static final String ROUTES_PARAM = "routes";
+        private static final String LEGS_PARAM = "legs";
+        private static final String STEPS_PARAM = "steps";
+        private static final String END_LOCATION_PARAM = "end_location";
+        private static final String START_LOCATION_PARAM = "start_location";
+        private static final String LATITUDE_PARAM = "lat";
+        private static final String LONGITUDE_PARAM = "lng";
+        private static final String API_KEY_PARAM = "key";
+
+        double StartStepLat, StartStepLng, DestinationStepLat, DestinationStepLng;
+
+        @Override
+        protected void onPreExecute() {
+
+        }
+
+        @Override
+        protected JSONObject doInBackground(String... args) {
+            final String MyAPIKey = "AIzaSyBe6TqDxaDb3Bva99q1fiyG1d5ZKwYLnmY";
+            String[] restriction = {"tolls", "highways", "ferries"};
+
+            if (args.length == 0) {
+                return null;
+            }
+
+            try {
+                HashMap<String, String> params = new HashMap<>();
+                params.put(ORIGIN_PARAM, args[0] + "," + args[1]);
+                params.put(DESTINATION_PARAM, args[2] + "," + args[3]);
+                params.put(AVOID_PARAM, restriction[0] + "|" + restriction[2]);
+                params.put(API_KEY_PARAM, MyAPIKey);
+
+                JSONObject json = jsonParser.makeHttpRequest(BASE_URL, "GET", params);
+                if (json != null) {
+                    //Log.i(TAG, json.toString());
+                    JSONArray RouteDataArray = json.getJSONArray(ROUTES_PARAM);
+                    JSONObject RouteDataObject = RouteDataArray.getJSONObject(0);
+                    JSONArray LegsDataArray = RouteDataObject.getJSONArray(LEGS_PARAM);
+                    JSONObject LegsDataObject = LegsDataArray.getJSONObject(0);
+                    JSONArray StepsDataArray = LegsDataObject.getJSONArray(STEPS_PARAM);
+                    for (int i = 0; i < StepsDataArray.length(); i++) {
+                        JSONObject StepsDataObject = StepsDataArray.getJSONObject(i);
+                        JSONObject startLatLng = StepsDataObject.getJSONObject(START_LOCATION_PARAM);
+                        JSONObject endLatLng = StepsDataObject.getJSONObject(END_LOCATION_PARAM);
+
+                        StartStepLat = startLatLng.getDouble(LATITUDE_PARAM);
+                        StartStepLng = startLatLng.getDouble(LONGITUDE_PARAM);
+                        DestinationStepLat = endLatLng.getDouble(LATITUDE_PARAM);
+                        DestinationStepLng = endLatLng.getDouble(LONGITUDE_PARAM);
+
+                        final LatLng stepLatLng = new LatLng(StartStepLat, StartStepLng);
+                        final LatLng stepLatLngEnd = new LatLng(DestinationStepLat, DestinationStepLng);
+
+                        Log.i(TAG, "Start Lat:" + i + " " + StartStepLat);
+                        Log.i(TAG, "Start Lng:" + i + " " + StartStepLng);
+                        Log.i(TAG, "End Lat:" + i + " " + DestinationStepLat);
+                        Log.i(TAG, "End Lng:" + i + " " + DestinationStepLng);
+
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                MarkerOptions markerOptions = new MarkerOptions().position(stepLatLng);
+                                MarkerOptions markerEnd = new MarkerOptions().position(stepLatLngEnd)
+                                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.destination_icon));
+                                mMap.addMarker(markerOptions);
+                                mMap.addMarker(markerEnd);
+                            }
+                        });
+                    }
+                } else {
+                    Log.i(TAG, "json null");
+                }
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+            return null;
+        }
+
+        protected void onPostExecute(JSONObject json) {
+
         }
     }
 }
