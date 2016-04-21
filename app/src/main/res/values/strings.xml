@@ -7,6 +7,8 @@
     <string name="log_in">Log In</string>
 
     <string name="search">Search</string>
+    <string name="checkpoint_lat">CheckpointLat</string>
+    <string name="checkpoint_lng">CheckpointLng</string>
 
     <string name="welcome">Welcome!</string>
     <string name="content1">First thing first. Create your own account.</string>

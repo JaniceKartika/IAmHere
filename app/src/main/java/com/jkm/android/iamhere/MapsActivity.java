@@ -4,10 +4,12 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.IntentSender;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -39,11 +41,14 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 
 public class MapsActivity extends AppCompatActivity implements
@@ -64,14 +69,18 @@ public class MapsActivity extends AppCompatActivity implements
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
 
-    double currentLat, currentLong, destinationLat, destinationLong;
+    //double currentLat, currentLong, destinationLat, destinationLong;
     int count = 0;
 
-    Location destination = new Location("Destination");
-    Location startingPoint = new Location("Starting Point");
-    LatLng currentLatLng, desLatLng;
+    Location startLocation = new Location("Start");
+    Location destinationLocation = new Location("Destination");
+    LatLng startLatLng, destinationLatLng;
     Marker startMarker, destinationMarker;
+    ArrayList<Marker> checkpointMarker = new ArrayList<>();
+    ArrayList<String> checkpointLat = new ArrayList<>();
+    ArrayList<String> checkpointLng = new ArrayList<>();
     float zoomLevel = (float) 16.0; //This goes up to 21
+    Polyline PolylineRoute;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -100,8 +109,8 @@ public class MapsActivity extends AppCompatActivity implements
                 .setInterval(10 * 1000)        // 10 seconds, in milliseconds
                 .setFastestInterval(1000); // 1 second, in milliseconds
 
-        destination.setLatitude(0);
-        destination.setLongitude(0);
+        destinationLocation.setLatitude(0);
+        destinationLocation.setLongitude(0);
     }
 
     @Override
@@ -117,6 +126,7 @@ public class MapsActivity extends AppCompatActivity implements
         Log.v(TAG, "Im on onResume");
         setUpMapIfNeeded();
         mGoogleApiClient.connect();
+        //stopService(new Intent(this, MyService.class));
     }
 
     @Override
@@ -176,11 +186,11 @@ public class MapsActivity extends AppCompatActivity implements
      * Sets up the map if it is possible to do so (i.e., the Google Play services APK is correctly
      * installed) and the map has not already been instantiated.. This will ensure that we only ever
      * call {@link #setUpMap()} once when {@link #mMap} is not null.
-     * <p>
+     * <p/>
      * If it isn't installed {@link SupportMapFragment} (and
      * {@link com.google.android.gms.maps.MapView MapView}) will show a prompt for the user to
      * install/update the Google Play services APK on their device.
-     * <p>
+     * <p/>
      * A user can return to this FragmentActivity after following the prompt and correctly
      * installing/updating/enabling the Google Play services. Since the FragmentActivity may not
      * have been completely destroyed during this process (it is likely that it would only be
@@ -212,7 +222,7 @@ public class MapsActivity extends AppCompatActivity implements
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
                 || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED)
             mMap.setMyLocationEnabled(true);
-        mMap.setTrafficEnabled(true);
+        //mMap.setTrafficEnabled(true);
         mMap.getUiSettings().setZoomControlsEnabled(true);
     }
 
@@ -220,43 +230,24 @@ public class MapsActivity extends AppCompatActivity implements
         //Log.d(TAG, location.toString());
         count++;
 
-        currentLat = location.getLatitude();
-        currentLong = location.getLongitude();
+        startLocation.setLatitude(location.getLatitude());
+        startLocation.setLongitude(location.getLongitude());
 
-        startingPoint.setLatitude(currentLat);
-        startingPoint.setLongitude(currentLong);
-
-        currentLatLng = new LatLng(currentLat, currentLong);
-        Log.v(TAG, "starting = " + currentLatLng.toString());
-
-        //TODO: send data to hardware
+        startLatLng = new LatLng(location.getLatitude(), location.getLongitude());
+        Log.v(TAG, "starting = " + startLatLng.toString());
 
         //mMap.addMarker(new MarkerOptions().position(new LatLng(currentLatitude, currentLongitude)).title("Current Location"));
         MarkerOptions options = new MarkerOptions()
-                .position(currentLatLng)
+                .position(startLatLng)
                 .title("I am here!")
                 .icon(BitmapDescriptorFactory.fromResource(R.drawable.start_icon));
         if (startMarker != null)
             startMarker.remove();
         startMarker = mMap.addMarker(options);
         if (count == 1) {
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, zoomLevel));
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(startLatLng, zoomLevel));
             //mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
         }
-    }
-
-    private float getBearing(LatLng begin, LatLng end) {
-        double lat = Math.abs(begin.latitude - end.latitude);
-        double lng = Math.abs(begin.longitude - end.longitude);
-        if (begin.latitude < end.latitude && begin.longitude < end.longitude)
-            return (float) (Math.toDegrees(Math.atan(lng / lat)));
-        else if (begin.latitude >= end.latitude && begin.longitude < end.longitude)
-            return (float) ((90 - Math.toDegrees(Math.atan(lng / lat))) + 90);
-        else if (begin.latitude >= end.latitude && begin.longitude >= end.longitude)
-            return (float) (Math.toDegrees(Math.atan(lng / lat)) + 180);
-        else if (begin.latitude < end.latitude && begin.longitude >= end.longitude)
-            return (float) ((90 - Math.toDegrees(Math.atan(lng / lat))) + 270);
-        return -1;
     }
 
     @Override
@@ -312,45 +303,22 @@ public class MapsActivity extends AppCompatActivity implements
     public void onMapClick(LatLng latLng) {
         //myMap.addMarker(new MarkerOptions().position(point).title(point.toString()));
 
-        destinationLat = latLng.latitude;
-        destinationLong = latLng.longitude;
-
-        destination.setLatitude(destinationLat);
-        destination.setLongitude(destinationLong);
+        destinationLocation.setLatitude(latLng.latitude);
+        destinationLocation.setLongitude(latLng.longitude);
 
         //Convert Location to LatLng
-        desLatLng = new LatLng(destinationLat, destinationLong);
-        Log.v(TAG, "destination = " + desLatLng.toString());
-
-        //TODO: send data to hardware
+        destinationLatLng = new LatLng(latLng.latitude, latLng.longitude);
+        Log.v(TAG, "destination = " + destinationLatLng.toString());
 
         if (destinationMarker != null)
             destinationMarker.remove();
 
         MarkerOptions markerOptions = new MarkerOptions()
-                .position(desLatLng)
+                .position(destinationLatLng)
                 .title("Destination")
                 .draggable(true)
                 .icon(BitmapDescriptorFactory.fromResource(R.drawable.destination_icon));
         destinationMarker = mMap.addMarker(markerOptions);
-    }
-
-    private void SendDataToHardware(int SendCode) {
-        String sendData;
-        float distance, bearing;
-        int intDistance, intBearing;
-        if (destination.getLatitude() != 0 && destination.getLongitude() != 0) {
-            distance = startingPoint.distanceTo(destination);
-            Log.v(TAG, "distance = " + distance);
-
-            bearing = getBearing(currentLatLng, desLatLng);
-            Log.v(TAG, "bearing = " + bearing);
-
-            intDistance = (int) distance;
-            intBearing = (int) bearing;
-            sendData = "#" + intDistance + "," + intBearing + "," + SendCode + "\n";
-            Log.v(TAG, "data = " + sendData);
-        }
     }
 
     @Override
@@ -387,19 +355,25 @@ public class MapsActivity extends AppCompatActivity implements
             if (resultCode == RESULT_OK) {
                 Place place = PlaceAutocomplete.getPlace(this, data);
                 Log.i(TAG, "Place: " + place.getName() + ", LatLng = " + place.getLatLng());
-                destinationLat = place.getLatLng().latitude;
-                destinationLong = place.getLatLng().longitude;
 
                 new GetAsync().execute(
-                        String.valueOf(currentLat),
-                        String.valueOf(currentLong),
-                        String.valueOf(destinationLat),
-                        String.valueOf(destinationLong));
-
-                //TODO: send data to hardware
+                        String.valueOf(startLatLng.latitude),
+                        String.valueOf(startLatLng.longitude),
+                        String.valueOf(place.getLatLng().latitude),
+                        String.valueOf(place.getLatLng().longitude));
 
                 if (destinationMarker != null)
                     destinationMarker.remove();
+                if (PolylineRoute != null)
+                    PolylineRoute.remove();
+                if (checkpointMarker.size() > 0) {
+                    int checkpointCount = checkpointMarker.size();
+                    for (int i = 0; i < checkpointCount; i++) {
+                        Marker marker = checkpointMarker.get(i);
+                        marker.remove();
+                    }
+                    checkpointMarker.clear();
+                }
                 MarkerOptions markerOptions = new MarkerOptions()
                         .position(place.getLatLng())
                         .title("Destination")
@@ -424,6 +398,38 @@ public class MapsActivity extends AppCompatActivity implements
         }
     }
 
+    private ArrayList<LatLng> decodePoly(String encoded) {
+        Log.i(TAG, "String received: " + encoded);
+        ArrayList<LatLng> poly = new ArrayList<>();
+        int index = 0, len = encoded.length();
+        int lat = 0, lng = 0;
+
+        while (index < len) {
+            int b, shift = 0, result = 0;
+            do {
+                b = encoded.charAt(index++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+            lat += dlat;
+
+            shift = 0;
+            result = 0;
+            do {
+                b = encoded.charAt(index++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+            lng += dlng;
+
+            LatLng p = new LatLng((((double) lat / 1E5)), (((double) lng / 1E5)));
+            poly.add(p);
+        }
+        return poly;
+    }
+
     public class GetAsync extends AsyncTask<String, String, JSONObject> {
         JSONParser jsonParser = new JSONParser();
         private static final String BASE_URL = "https://maps.googleapis.com/maps/api/directions/json";
@@ -431,6 +437,8 @@ public class MapsActivity extends AppCompatActivity implements
         private static final String DESTINATION_PARAM = "destination";
         private static final String AVOID_PARAM = "avoid";
         private static final String ROUTES_PARAM = "routes";
+        private static final String OVERVIEW_POLYLINE_PARAM = "overview_polyline";
+        private static final String POINTS_PARAM = "points";
         private static final String LEGS_PARAM = "legs";
         private static final String STEPS_PARAM = "steps";
         private static final String END_LOCATION_PARAM = "end_location";
@@ -443,7 +451,8 @@ public class MapsActivity extends AppCompatActivity implements
 
         @Override
         protected void onPreExecute() {
-
+            checkpointLat.clear();
+            checkpointLng.clear();
         }
 
         @Override
@@ -467,6 +476,22 @@ public class MapsActivity extends AppCompatActivity implements
                     //Log.i(TAG, json.toString());
                     JSONArray RouteDataArray = json.getJSONArray(ROUTES_PARAM);
                     JSONObject RouteDataObject = RouteDataArray.getJSONObject(0);
+                    JSONObject OverviewPolylineObject = RouteDataObject.getJSONObject(OVERVIEW_POLYLINE_PARAM);
+                    String EncodedOverviewPolyline = OverviewPolylineObject.getString(POINTS_PARAM);
+                    //Log.i(TAG, "Encoded Polyline = " + EncodedOverviewPolyline);
+                    final ArrayList<LatLng> DecodedPoly = decodePoly(EncodedOverviewPolyline);
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            PolylineOptions route = new PolylineOptions();
+                            for (int i = 0; i < DecodedPoly.size(); i++) {
+                                route.add(new LatLng(DecodedPoly.get(i).latitude, DecodedPoly.get(i).longitude));
+                            }
+                            route.color(R.color.colorPrimaryDark).width(7);
+                            PolylineRoute = mMap.addPolyline(route);
+                        }
+                    });
+
                     JSONArray LegsDataArray = RouteDataObject.getJSONArray(LEGS_PARAM);
                     JSONObject LegsDataObject = LegsDataArray.getJSONObject(0);
                     JSONArray StepsDataArray = LegsDataObject.getJSONArray(STEPS_PARAM);
@@ -481,24 +506,30 @@ public class MapsActivity extends AppCompatActivity implements
                         DestinationStepLng = endLatLng.getDouble(LONGITUDE_PARAM);
 
                         final LatLng stepLatLng = new LatLng(StartStepLat, StartStepLng);
-                        final LatLng stepLatLngEnd = new LatLng(DestinationStepLat, DestinationStepLng);
+                        //LatLng checkpoint = new LatLng(DestinationStepLat, DestinationStepLng);
+
+                        checkpointLat.add(String.valueOf(DestinationStepLat));
+                        checkpointLng.add(String.valueOf(DestinationStepLng));
 
                         Log.i(TAG, "Start Lat:" + i + " " + StartStepLat);
                         Log.i(TAG, "Start Lng:" + i + " " + StartStepLng);
                         Log.i(TAG, "End Lat:" + i + " " + DestinationStepLat);
                         Log.i(TAG, "End Lng:" + i + " " + DestinationStepLng);
 
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                MarkerOptions markerOptions = new MarkerOptions().position(stepLatLng);
-                                MarkerOptions markerEnd = new MarkerOptions().position(stepLatLngEnd)
-                                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.destination_icon));
-                                mMap.addMarker(markerOptions);
-                                mMap.addMarker(markerEnd);
-                            }
-                        });
+                        if (i > 0) {
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    MarkerOptions markerOptions = new MarkerOptions().position(stepLatLng).
+                                            icon(BitmapDescriptorFactory.fromResource(R.drawable.checkpoint_icon));
+                                    checkpointMarker.add(mMap.addMarker(markerOptions));
+                                }
+                            });
+                        }
                     }
+                    savePreferences(getResources().getString(R.string.checkpoint_lat), checkpointLat);
+                    savePreferences(getResources().getString(R.string.checkpoint_lng), checkpointLng);
+                    startService(new Intent(getApplicationContext(), MyService.class));
                 } else {
                     Log.i(TAG, "json null");
                 }
@@ -509,7 +540,17 @@ public class MapsActivity extends AppCompatActivity implements
         }
 
         protected void onPostExecute(JSONObject json) {
-
+            Log.i(TAG, "checkpointLat = " + checkpointLat.toString());
+            Log.i(TAG, "checkpointLng = " + checkpointLng.toString());
         }
+    }
+
+    private void savePreferences(String key, ArrayList<String> value) {
+        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        String set = value.toString();
+        Log.i(TAG, "set = " + set);
+        editor.putString(key, set);
+        editor.apply();
     }
 }
