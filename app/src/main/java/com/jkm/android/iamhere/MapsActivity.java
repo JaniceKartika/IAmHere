@@ -2,7 +2,11 @@ package com.jkm.android.iamhere;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ActivityManager;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.IntentSender;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -16,6 +20,7 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.TextView;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
@@ -24,7 +29,6 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.PendingResult;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
-import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.LocationSettingsRequest;
@@ -54,7 +58,7 @@ import java.util.HashMap;
 public class MapsActivity extends AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
-        LocationListener,
+        /*LocationListener,*/
         GoogleMap.OnMapClickListener,
         OnMapReadyCallback {
 
@@ -82,6 +86,8 @@ public class MapsActivity extends AppCompatActivity implements
     float zoomLevel = (float) 16.0; //This goes up to 21
     Polyline PolylineRoute;
 
+    TextView tvDebug;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -89,6 +95,8 @@ public class MapsActivity extends AppCompatActivity implements
 
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+
+        tvDebug = (TextView) findViewById(R.id.textview_debug);
 
         setUpMapIfNeeded();
 
@@ -103,11 +111,10 @@ public class MapsActivity extends AppCompatActivity implements
                 .addApi(Places.PLACE_DETECTION_API)
                 .build();
 
-        // Create the LocationRequest object
-        mLocationRequest = LocationRequest.create()
-                .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
-                .setInterval(10 * 1000)        // 10 seconds, in milliseconds
-                .setFastestInterval(1000); // 1 second, in milliseconds
+        mLocationRequest = new LocationRequest();
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        mLocationRequest.setInterval(1000);
+        mLocationRequest.setFastestInterval(500);
 
         destinationLocation.setLatitude(0);
         destinationLocation.setLongitude(0);
@@ -126,6 +133,11 @@ public class MapsActivity extends AppCompatActivity implements
         Log.v(TAG, "Im on onResume");
         setUpMapIfNeeded();
         mGoogleApiClient.connect();
+        IntentFilter filter = new IntentFilter(getResources().getString(R.string.data_sent_intent));
+        filter.addAction(getResources().getString(R.string.location_change_intent));
+        registerReceiver(UpdateUI, filter);
+        if (!isMyServiceRunning(MyService.class))
+            startService(new Intent(this, MyService.class));
         //stopService(new Intent(this, MyService.class));
     }
 
@@ -134,9 +146,10 @@ public class MapsActivity extends AppCompatActivity implements
         super.onPause();
         Log.v(TAG, "Im on onPause");
         if (mGoogleApiClient.isConnected()) {
-            LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
+            //LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
             mGoogleApiClient.disconnect();
         }
+        unregisterReceiver(UpdateUI);
     }
 
     @Override
@@ -145,11 +158,31 @@ public class MapsActivity extends AppCompatActivity implements
         Log.v(TAG, "Im on onDestroy");
     }
 
-    public void SettingsRequest() {
-        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder()
-                .addLocationRequest(mLocationRequest);
-        builder.setAlwaysShow(true);
+    private boolean isMyServiceRunning(Class<?> serviceClass) {
+        ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
+            if (serviceClass.getName().equals(service.service.getClassName())) {
+                return true;
+            }
+        }
+        return false;
+    }
 
+    private BroadcastReceiver UpdateUI = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (getResources().getString(R.string.data_sent_intent).equals(action)) {
+                tvDebug.setText(intent.getExtras().getString(getResources().getString(R.string.data_sent_key)));
+            } else if (getResources().getString(R.string.location_change_intent).equals(action)) {
+                handleNewLocation((Location) intent.getParcelableExtra(getResources().getString(R.string.location_change_key)));
+            }
+        }
+    };
+
+    public void SettingsRequest() {
+        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder().addLocationRequest(mLocationRequest);
+        builder.setAlwaysShow(true);
         PendingResult<LocationSettingsResult> result =
                 LocationServices.SettingsApi.checkLocationSettings(mGoogleApiClient, builder.build());
         result.setResultCallback(new ResultCallback<LocationSettingsResult>() {
@@ -159,23 +192,15 @@ public class MapsActivity extends AppCompatActivity implements
                 //final LocationSettingsStates state = result.getLocationSettingsStates();
                 switch (status.getStatusCode()) {
                     case LocationSettingsStatusCodes.SUCCESS:
-                        // All location settings are satisfied. The client can initialize location
-                        // requests here.
                         break;
                     case LocationSettingsStatusCodes.RESOLUTION_REQUIRED:
-                        // Location settings are not satisfied. But could be fixed by showing the user
-                        // a dialog.
                         try {
-                            // Show the dialog by calling startResolutionForResult(),
-                            // and check the result in onActivityResult().
                             status.startResolutionForResult(MapsActivity.this, REQUEST_CHECK_SETTINGS);
                         } catch (IntentSender.SendIntentException e) {
-                            // Ignore the error.
+                            e.printStackTrace();
                         }
                         break;
                     case LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE:
-                        // Location settings are not satisfied. However, we have no way to fix the
-                        // settings so we won't show the dialog.
                         break;
                 }
             }
@@ -219,8 +244,7 @@ public class MapsActivity extends AppCompatActivity implements
 
     private void setUpMap() {
         mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
             mMap.setMyLocationEnabled(true);
         //mMap.setTrafficEnabled(true);
         mMap.getUiSettings().setZoomControlsEnabled(true);
@@ -252,10 +276,9 @@ public class MapsActivity extends AppCompatActivity implements
 
     @Override
     public void onConnected(Bundle bundle) {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             Location location = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
-            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+            //LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
             handleNewLocation(location);
         }
     }
@@ -294,10 +317,10 @@ public class MapsActivity extends AppCompatActivity implements
         }
     }
 
-    @Override
+    /*@Override
     public void onLocationChanged(Location location) {
         handleNewLocation(location);
-    }
+    }*/
 
     @Override
     public void onMapClick(LatLng latLng) {
@@ -549,7 +572,7 @@ public class MapsActivity extends AppCompatActivity implements
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
         SharedPreferences.Editor editor = sharedPreferences.edit();
         String set = value.toString();
-        Log.i(TAG, "set = " + set);
+        //Log.i(TAG, "set = " + set);
         editor.putString(key, set);
         editor.apply();
     }

@@ -1,74 +1,64 @@
 package com.jkm.android.iamhere;
 
 import android.Manifest;
+import android.app.Activity;
 import android.app.Service;
-import android.content.Context;
 import android.content.Intent;
+import android.content.IntentSender;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
-import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.location.LocationListener;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.model.LatLng;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 
-public class MyService extends Service {
+public class MyService extends Service implements
+        GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener,
+        LocationListener {
+
     private static final String TAG = MyService.class.getSimpleName();
-    private LocationManager mLocationManager = null;
-    private static final int LOCATION_INTERVAL = 300;
-    private static final float LOCATION_DISTANCE = 0;
     ArrayList<String> checkpointLat = new ArrayList<>();
     ArrayList<String> checkpointLng = new ArrayList<>();
     Location checkpoint = new Location("Checkpoint");
+    int count = 0;
 
-    private class LocationListener implements android.location.LocationListener {
-        Location mLastLocation;
+    private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
+    private GoogleApiClient mGoogleApiClient;
+    private LocationRequest mLocationRequest;
 
-        public LocationListener(String provider) {
-            Log.i(TAG, "LocationListener " + provider);
-            mLastLocation = new Location(provider);
-        }
+    @Override
+    public void onCreate() {
+        Log.i(TAG, "onCreate");
+        mGoogleApiClient = new GoogleApiClient
+                .Builder(this)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .addApi(LocationServices.API)
+                .build();
 
-        @Override
-        public void onLocationChanged(Location location) {
-            Log.i(TAG, "onLocationChanged: " + location.getLatitude() + ", " + location.getLongitude());
-            mLastLocation.set(location);
-            double lat = Double.valueOf(checkpointLat.get(0));
-            double lng = Double.valueOf(checkpointLng.get(0));
-            Log.i(TAG, "checkpointLat = " + String.valueOf(lat));
-            Log.i(TAG, "checkpointLng = " + String.valueOf(lng));
-            checkpoint.setLatitude(lat);
-            checkpoint.setLongitude(lng);
-            SendDataToHardware(location, checkpoint, 0);
-        }
+        mLocationRequest = new LocationRequest();
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        mLocationRequest.setInterval(1000);
+        mLocationRequest.setFastestInterval(500);
 
-        @Override
-        public void onProviderDisabled(String provider) {
-            Log.i(TAG, "onProviderDisabled: " + provider);
-        }
+        mGoogleApiClient.connect();
 
-        @Override
-        public void onProviderEnabled(String provider) {
-            Log.i(TAG, "onProviderEnabled: " + provider);
-        }
-
-        @Override
-        public void onStatusChanged(String provider, int status, Bundle extras) {
-            Log.i(TAG, "onStatusChanged: " + provider);
-        }
+        savePreferences(getResources().getString(R.string.checkpoint_lat), "0");
+        savePreferences(getResources().getString(R.string.checkpoint_lng), "0");
     }
-
-    LocationListener[] mLocationListeners = new LocationListener[]{
-            new LocationListener(LocationManager.GPS_PROVIDER),
-            new LocationListener(LocationManager.NETWORK_PROVIDER)
-    };
 
     @Override
     public IBinder onBind(Intent arg0) {
@@ -77,67 +67,79 @@ public class MyService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.i(TAG, "onStartCommand");
         super.onStartCommand(intent, flags, startId);
-        return START_STICKY;
-    }
-
-    @Override
-    public void onCreate() {
-        Log.i(TAG, "onCreate");
-        initializeLocationManager();
-        try {
-            mLocationManager.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER, LOCATION_INTERVAL, LOCATION_DISTANCE,
-                    mLocationListeners[1]);
-        } catch (java.lang.SecurityException ex) {
-            Log.i(TAG, "fail to request location update, ignore", ex);
-        } catch (IllegalArgumentException ex) {
-            Log.d(TAG, "network provider does not exist, " + ex.getMessage());
-        }
-        try {
-            mLocationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER, LOCATION_INTERVAL, LOCATION_DISTANCE,
-                    mLocationListeners[0]);
-        } catch (java.lang.SecurityException ex) {
-            Log.i(TAG, "fail to request location update, ignore", ex);
-        } catch (IllegalArgumentException ex) {
-            Log.d(TAG, "gps provider does not exist " + ex.getMessage());
-        }
+        Log.i(TAG, "onStartCommand");
+        count = 0;
         checkpointLat = loadSavedPreferences(getResources().getString(R.string.checkpoint_lat));
         checkpointLng = loadSavedPreferences(getResources().getString(R.string.checkpoint_lng));
         Log.i(TAG, "checkpointLat = " + checkpointLat.toString());
         Log.i(TAG, "checkpointLng = " + checkpointLng.toString());
+        return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
         Log.i(TAG, "onDestroy");
         super.onDestroy();
-        if (mLocationManager != null) {
-            for (LocationListener mLocationListener : mLocationListeners) {
-                try {
-                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                            || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED)
-                        mLocationManager.removeUpdates(mLocationListener);
-                } catch (Exception ex) {
-                    Log.i(TAG, "fail to remove location listeners, ignore", ex);
-                }
+        if (mGoogleApiClient.isConnected()) {
+            LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
+            mGoogleApiClient.disconnect();
+        }
+    }
+
+    @Override
+    public void onLocationChanged(Location location) {
+        Log.i(TAG, "onLocationChanged: " + location.getLatitude() + ", " + location.getLongitude());
+        Intent i = new Intent(getResources().getString(R.string.location_change_intent));
+        i.putExtra(getResources().getString(R.string.location_change_key), location);
+        sendBroadcast(i);
+        SendDataToHardware(location, checkpointLat, checkpointLng);
+    }
+
+    private void SendDataToHardware(Location startingPoint, ArrayList<String> checkpointLat, ArrayList<String> checkpointLng) {
+        String sendData;
+        float distance, bearing;
+        int intDistance, intBearing;
+        LatLng startLatLng, destinationLatLng;
+        if (count < checkpointLat.size()) {
+            double lat = Double.valueOf(checkpointLat.get(count));
+            double lng = Double.valueOf(checkpointLng.get(count));
+            checkpoint.setLatitude(lat);
+            checkpoint.setLongitude(lng);
+            if (checkpoint.getLatitude() != 0 && checkpoint.getLongitude() != 0) {
+                distance = startingPoint.distanceTo(checkpoint);
+                Log.v(TAG, "distance = " + distance);
+
+                startLatLng = new LatLng(startingPoint.getLatitude(), startingPoint.getLongitude());
+                destinationLatLng = new LatLng(checkpoint.getLatitude(), checkpoint.getLongitude());
+
+                bearing = getBearing(startLatLng, destinationLatLng);
+                Log.v(TAG, "bearing = " + bearing);
+
+                intDistance = (int) distance;
+                intBearing = (int) bearing;
+                sendData = "#" + intDistance + "," + intBearing + "\n";
+                Log.v(TAG, "data = " + sendData);
+                Intent i = new Intent(getResources().getString(R.string.data_sent_intent));
+                i.putExtra(getResources().getString(R.string.data_sent_key), sendData);
+                sendBroadcast(i);
+                if (distance < 10)
+                    count++;
             }
         }
     }
 
-    private void initializeLocationManager() {
-        Log.i(TAG, "initializeLocationManager");
-        if (mLocationManager == null) {
-            mLocationManager = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
-        }
+    private void savePreferences(String key, String value) {
+        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putString(key, value);
+        editor.apply();
     }
 
     private ArrayList<String> loadSavedPreferences(String key) {
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
         String set = sharedPreferences.getString(key, "0");
-        Log.i(TAG, "set = " + set);
+        //Log.i(TAG, "set = " + set);
         return convertToArrayList(set);
     }
 
@@ -146,28 +148,6 @@ public class MyService extends Service {
         String temp2 = temp1.replace("]", "");
         String[] dataArray = temp2.split(",");
         return new ArrayList<>(Arrays.asList(dataArray));
-    }
-
-    private void SendDataToHardware(Location startingPoint, Location destination, int SendCode) {
-        String sendData;
-        float distance, bearing;
-        int intDistance, intBearing;
-        LatLng startLatLng, destinationLatLng;
-        if (destination.getLatitude() != 0 && destination.getLongitude() != 0) {
-            distance = startingPoint.distanceTo(destination);
-            Log.v(TAG, "distance = " + distance);
-
-            startLatLng = new LatLng(startingPoint.getLatitude(), startingPoint.getLongitude());
-            destinationLatLng = new LatLng(destination.getLatitude(), destination.getLongitude());
-
-            bearing = getBearing(startLatLng, destinationLatLng);
-            Log.v(TAG, "bearing = " + bearing);
-
-            intDistance = (int) distance;
-            intBearing = (int) bearing;
-            sendData = "#" + intDistance + "," + intBearing + "," + SendCode + "\n";
-            Log.v(TAG, "data = " + sendData);
-        }
     }
 
     private float getBearing(LatLng begin, LatLng end) {
@@ -182,5 +162,30 @@ public class MyService extends Service {
         else if (begin.latitude < end.latitude && begin.longitude >= end.longitude)
             return (float) ((90 - Math.toDegrees(Math.atan(lng / lat))) + 270);
         return -1;
+    }
+
+    @Override
+    public void onConnected(Bundle bundle) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+        }
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+
+    }
+
+    @Override
+    public void onConnectionFailed(ConnectionResult connectionResult) {
+        if (connectionResult.hasResolution()) {
+            try {
+                connectionResult.startResolutionForResult((Activity) getApplicationContext(), CONNECTION_FAILURE_RESOLUTION_REQUEST);
+            } catch (IntentSender.SendIntentException e) {
+                e.printStackTrace();
+            }
+        } else {
+            Log.i(TAG, "Location services connection failed with code " + connectionResult.getErrorCode());
+        }
     }
 }
