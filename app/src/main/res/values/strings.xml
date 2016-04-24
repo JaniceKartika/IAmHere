@@ -13,6 +13,9 @@
     <string name="data_sent_key">DataSentKey</string>
     <string name="location_change_intent">LocationChangeIntent</string>
     <string name="location_change_key">LocationChangeKey</string>
+    <string name="settings_has_pop">SettingsHasPop</string>
+    <string name="string_polyline">StringPolyline</string>
+    <string name="just_null">JustNull</string>
 
     <string name="welcome">Welcome!</string>
     <string name="content1">First thing first. Create your own account.</string>

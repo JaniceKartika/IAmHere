@@ -53,6 +53,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 
 public class MapsActivity extends AppCompatActivity implements
@@ -75,6 +76,8 @@ public class MapsActivity extends AppCompatActivity implements
 
     //double currentLat, currentLong, destinationLat, destinationLong;
     int count = 0;
+    boolean hasPop = false;
+    String EncodedPolyline;
 
     Location startLocation = new Location("Start");
     Location destinationLocation = new Location("Destination");
@@ -118,6 +121,17 @@ public class MapsActivity extends AppCompatActivity implements
 
         destinationLocation.setLatitude(0);
         destinationLocation.setLongitude(0);
+
+        hasPop = loadSavedPreferencesBoolean(getResources().getString(R.string.settings_has_pop));
+        if (isMyServiceRunning(MyService.class)) {
+            checkpointLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_lat));
+            checkpointLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_lng));
+            EncodedPolyline = loadSavedPreferencesString(getResources().getString(R.string.string_polyline));
+        } else {
+            checkpointLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.just_null));
+            checkpointLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.just_null));
+            EncodedPolyline = null;
+        }
     }
 
     @Override
@@ -168,6 +182,38 @@ public class MapsActivity extends AppCompatActivity implements
         return false;
     }
 
+    private void updateUIOnMap(ArrayList<String> checkpointLat, ArrayList<String> checkpointLng, String EncodedOverviewPolyline) {
+        if (EncodedOverviewPolyline != null) {
+            ArrayList<LatLng> DecodedPoly = decodePoly(EncodedOverviewPolyline);
+            PolylineOptions route = new PolylineOptions();
+            for (int i = 0; i < DecodedPoly.size(); i++) {
+                route.add(new LatLng(DecodedPoly.get(i).latitude, DecodedPoly.get(i).longitude));
+            }
+            route.color(R.color.colorPrimaryDark).width(7);
+            PolylineRoute = mMap.addPolyline(route);
+        }
+        for (int i = 0; i < checkpointLat.size(); i++) {
+            double lat = Double.valueOf(checkpointLat.get(i));
+            double lng = Double.valueOf(checkpointLng.get(i));
+            LatLng checkpointLatLng = new LatLng(lat, lng);
+            if (checkpointLatLng.latitude != 0 && checkpointLatLng.longitude != 0) {
+                if (i == checkpointLat.size() - 1) {
+                    MarkerOptions markerOptions = new MarkerOptions()
+                            .position(checkpointLatLng)
+                            .title("Destination")
+                            .draggable(true)
+                            .icon(BitmapDescriptorFactory.fromResource(R.drawable.destination_icon));
+                    destinationMarker = mMap.addMarker(markerOptions);
+                } else {
+                    MarkerOptions markerOptions = new MarkerOptions()
+                            .position(checkpointLatLng)
+                            .icon(BitmapDescriptorFactory.fromResource(R.drawable.checkpoint_icon));
+                    checkpointMarker.add(mMap.addMarker(markerOptions));
+                }
+            }
+        }
+    }
+
     private BroadcastReceiver UpdateUI = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -189,13 +235,18 @@ public class MapsActivity extends AppCompatActivity implements
             @Override
             public void onResult(LocationSettingsResult result) {
                 final Status status = result.getStatus();
+                //Log.i(TAG, "status code: " + status.getStatusCode() + ", status message: " + status.getStatusMessage());
                 //final LocationSettingsStates state = result.getLocationSettingsStates();
                 switch (status.getStatusCode()) {
                     case LocationSettingsStatusCodes.SUCCESS:
                         break;
                     case LocationSettingsStatusCodes.RESOLUTION_REQUIRED:
                         try {
-                            status.startResolutionForResult(MapsActivity.this, REQUEST_CHECK_SETTINGS);
+                            if (!hasPop) {
+                                status.startResolutionForResult(MapsActivity.this, REQUEST_CHECK_SETTINGS);
+                                hasPop = true;
+                                savePreferences(getResources().getString(R.string.settings_has_pop), hasPop);
+                            }
                         } catch (IntentSender.SendIntentException e) {
                             e.printStackTrace();
                         }
@@ -207,28 +258,10 @@ public class MapsActivity extends AppCompatActivity implements
         });
     }
 
-    /**
-     * Sets up the map if it is possible to do so (i.e., the Google Play services APK is correctly
-     * installed) and the map has not already been instantiated.. This will ensure that we only ever
-     * call {@link #setUpMap()} once when {@link #mMap} is not null.
-     * <p/>
-     * If it isn't installed {@link SupportMapFragment} (and
-     * {@link com.google.android.gms.maps.MapView MapView}) will show a prompt for the user to
-     * install/update the Google Play services APK on their device.
-     * <p/>
-     * A user can return to this FragmentActivity after following the prompt and correctly
-     * installing/updating/enabling the Google Play services. Since the FragmentActivity may not
-     * have been completely destroyed during this process (it is likely that it would only be
-     * stopped or paused), {@link #onCreate(Bundle)} may not be called again so we should call this
-     * method in {@link #onResume()} to guarantee that it will be called.
-     */
     private void setUpMapIfNeeded() {
-        // Do a null check to confirm that we have not already instantiated the map.
         if (mMap == null) {
-            // Try to obtain the map from the SupportMapFragment.
             SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
             mapFragment.getMapAsync(this);
-            // Check if we were successful in obtaining the map.
             if (mMap != null) {
                 startMarker = mMap.addMarker(new MarkerOptions().position(new LatLng(0, 0)).title("Marker"));
             }
@@ -237,9 +270,12 @@ public class MapsActivity extends AppCompatActivity implements
 
     @Override
     public void onMapReady(GoogleMap googleMap) {
+        Log.i(TAG, "Map is ready.");
         mMap = googleMap;
         setUpMap();
         mMap.setOnMapClickListener(this);
+        cleanUpMap();
+        updateUIOnMap(checkpointLat, checkpointLng, EncodedPolyline);
     }
 
     private void setUpMap() {
@@ -290,29 +326,13 @@ public class MapsActivity extends AppCompatActivity implements
 
     @Override
     public void onConnectionFailed(ConnectionResult connectionResult) {
-        /*
-         * Google Play services can resolve some errors it detects.
-         * If the error has a resolution, try sending an Intent to
-         * start a Google Play services activity that can resolve
-         * error.
-         */
         if (connectionResult.hasResolution()) {
             try {
-                // Start an Activity that tries to resolve the error
                 connectionResult.startResolutionForResult(this, CONNECTION_FAILURE_RESOLUTION_REQUEST);
-                /*
-                 * Thrown if Google Play services canceled the original
-                 * PendingIntent
-                 */
             } catch (IntentSender.SendIntentException e) {
-                // Log the error
                 e.printStackTrace();
             }
         } else {
-            /*
-             * If no resolution is available, display a dialog to the
-             * user with the error.
-             */
             Log.i(TAG, "Location services connection failed with code " + connectionResult.getErrorCode());
         }
     }
@@ -372,6 +392,21 @@ public class MapsActivity extends AppCompatActivity implements
         }
     }
 
+    private void cleanUpMap() {
+        if (destinationMarker != null)
+            destinationMarker.remove();
+        if (PolylineRoute != null)
+            PolylineRoute.remove();
+        if (checkpointMarker.size() > 0) {
+            int checkpointCount = checkpointMarker.size();
+            for (int i = 0; i < checkpointCount; i++) {
+                Marker marker = checkpointMarker.get(i);
+                marker.remove();
+            }
+            checkpointMarker.clear();
+        }
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == PLACE_AUTOCOMPLETE_REQUEST_CODE) {
@@ -385,18 +420,7 @@ public class MapsActivity extends AppCompatActivity implements
                         String.valueOf(place.getLatLng().latitude),
                         String.valueOf(place.getLatLng().longitude));
 
-                if (destinationMarker != null)
-                    destinationMarker.remove();
-                if (PolylineRoute != null)
-                    PolylineRoute.remove();
-                if (checkpointMarker.size() > 0) {
-                    int checkpointCount = checkpointMarker.size();
-                    for (int i = 0; i < checkpointCount; i++) {
-                        Marker marker = checkpointMarker.get(i);
-                        marker.remove();
-                    }
-                    checkpointMarker.clear();
-                }
+                cleanUpMap();
                 MarkerOptions markerOptions = new MarkerOptions()
                         .position(place.getLatLng())
                         .title("Destination")
@@ -414,9 +438,11 @@ public class MapsActivity extends AppCompatActivity implements
 
         if (requestCode == REQUEST_CHECK_SETTINGS) {
             if (resultCode == Activity.RESULT_OK) {
-                Log.i(TAG, "Answer: OK");
+                Log.i(TAG, "Settings answer: OK");
+                hasPop = false;
+                savePreferences(getResources().getString(R.string.settings_has_pop), hasPop);
             } else if (resultCode == Activity.RESULT_CANCELED) {
-                Log.i(TAG, "Answer: CANCEL");
+                Log.i(TAG, "Settings answer: CANCEL");
             }
         }
     }
@@ -501,6 +527,7 @@ public class MapsActivity extends AppCompatActivity implements
                     JSONObject RouteDataObject = RouteDataArray.getJSONObject(0);
                     JSONObject OverviewPolylineObject = RouteDataObject.getJSONObject(OVERVIEW_POLYLINE_PARAM);
                     String EncodedOverviewPolyline = OverviewPolylineObject.getString(POINTS_PARAM);
+                    savePreferences(getResources().getString(R.string.string_polyline), EncodedOverviewPolyline);
                     //Log.i(TAG, "Encoded Polyline = " + EncodedOverviewPolyline);
                     final ArrayList<LatLng> DecodedPoly = decodePoly(EncodedOverviewPolyline);
                     runOnUiThread(new Runnable() {
@@ -528,7 +555,7 @@ public class MapsActivity extends AppCompatActivity implements
                         DestinationStepLat = endLatLng.getDouble(LATITUDE_PARAM);
                         DestinationStepLng = endLatLng.getDouble(LONGITUDE_PARAM);
 
-                        final LatLng stepLatLng = new LatLng(StartStepLat, StartStepLng);
+                        final LatLng stepLatLng = new LatLng(DestinationStepLat, DestinationStepLng);
                         //LatLng checkpoint = new LatLng(DestinationStepLat, DestinationStepLng);
 
                         checkpointLat.add(String.valueOf(DestinationStepLat));
@@ -539,7 +566,7 @@ public class MapsActivity extends AppCompatActivity implements
                         Log.i(TAG, "End Lat:" + i + " " + DestinationStepLat);
                         Log.i(TAG, "End Lng:" + i + " " + DestinationStepLng);
 
-                        if (i > 0) {
+                        if (i < StepsDataArray.length() - 1) {
                             runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
@@ -575,5 +602,42 @@ public class MapsActivity extends AppCompatActivity implements
         //Log.i(TAG, "set = " + set);
         editor.putString(key, set);
         editor.apply();
+    }
+
+    private void savePreferences(String key, boolean value) {
+        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putBoolean(key, value);
+        editor.apply();
+    }
+
+    private void savePreferences(String key, String value) {
+        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putString(key, value);
+        editor.apply();
+    }
+
+    private boolean loadSavedPreferencesBoolean(String key) {
+        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        return sharedPreferences.getBoolean(key, false);
+    }
+
+    private String loadSavedPreferencesString(String key) {
+        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        return sharedPreferences.getString(key, null);
+    }
+
+    private ArrayList<String> loadSavedPreferencesStringArrayList(String key) {
+        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        String set = sharedPreferences.getString(key, "0");
+        return convertToArrayList(set);
+    }
+
+    private ArrayList<String> convertToArrayList(String dataString) {
+        String temp1 = dataString.replace("[", "");
+        String temp2 = temp1.replace("]", "");
+        String[] dataArray = temp2.split(",");
+        return new ArrayList<>(Arrays.asList(dataArray));
     }
 }
