@@ -10,9 +10,12 @@ import android.content.IntentFilter;
 import android.content.IntentSender;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Point;
 import android.location.Location;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.SystemClock;
 import android.preference.PreferenceManager;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -20,6 +23,8 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.animation.Interpolator;
+import android.view.animation.LinearInterpolator;
 import android.widget.TextView;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -40,6 +45,7 @@ import com.google.android.gms.location.places.ui.PlaceAutocomplete;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.Projection;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
@@ -122,15 +128,18 @@ public class MapsActivity extends AppCompatActivity implements
         destinationLocation.setLatitude(0);
         destinationLocation.setLongitude(0);
 
-        hasPop = loadSavedPreferencesBoolean(getResources().getString(R.string.settings_has_pop));
         if (isMyServiceRunning(MyService.class)) {
+            hasPop = loadSavedPreferencesBoolean(getResources().getString(R.string.settings_has_pop));
             checkpointLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_lat));
             checkpointLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_lng));
             EncodedPolyline = loadSavedPreferencesString(getResources().getString(R.string.string_polyline));
         } else {
+            hasPop = false;
+            savePreferences(getResources().getString(R.string.settings_has_pop), hasPop);
             checkpointLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.just_null));
             checkpointLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.just_null));
             EncodedPolyline = null;
+            savePreferences(getResources().getString(R.string.string_polyline), EncodedPolyline);
         }
     }
 
@@ -287,27 +296,50 @@ public class MapsActivity extends AppCompatActivity implements
     }
 
     private void handleNewLocation(Location location) {
-        //Log.d(TAG, location.toString());
         count++;
-
         startLocation.setLatitude(location.getLatitude());
         startLocation.setLongitude(location.getLongitude());
-
         startLatLng = new LatLng(location.getLatitude(), location.getLongitude());
         Log.v(TAG, "starting = " + startLatLng.toString());
 
-        //mMap.addMarker(new MarkerOptions().position(new LatLng(currentLatitude, currentLongitude)).title("Current Location"));
         MarkerOptions options = new MarkerOptions()
                 .position(startLatLng)
                 .title("I am here!")
                 .icon(BitmapDescriptorFactory.fromResource(R.drawable.start_icon));
-        if (startMarker != null)
-            startMarker.remove();
-        startMarker = mMap.addMarker(options);
-        if (count == 1) {
+        if (startMarker == null)
+            startMarker = mMap.addMarker(options);
+        animateMarker(startMarker, startLatLng, false);
+        if (count == 1)
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(startLatLng, zoomLevel));
-            //mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
-        }
+    }
+
+    public void animateMarker(final Marker marker, final LatLng toPosition, final boolean hideMarker) {
+        final Handler handler = new Handler();
+        final long start = SystemClock.uptimeMillis();
+        Projection proj = mMap.getProjection();
+        Point startPoint = proj.toScreenLocation(marker.getPosition());
+        final LatLng startLatLng = proj.fromScreenLocation(startPoint);
+        final long duration = 500;
+        final Interpolator interpolator = new LinearInterpolator();
+
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                long elapsed = SystemClock.uptimeMillis() - start;
+                float t = interpolator.getInterpolation((float) elapsed / duration);
+                double lat = t * toPosition.latitude + (1 - t) * startLatLng.latitude;
+                double lng = t * toPosition.longitude + (1 - t) * startLatLng.longitude;
+                marker.setPosition(new LatLng(lat, lng));
+                if (t < 1.0) {
+                    handler.postDelayed(this, 16);
+                } else {
+                    if (hideMarker)
+                        marker.setVisible(false);
+                    else
+                        marker.setVisible(true);
+                }
+            }
+        });
     }
 
     @Override
