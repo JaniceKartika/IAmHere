@@ -30,14 +30,29 @@
 
     <TextView
         android:id="@+id/textview_debug"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@+id/app_bar"
+        android:background="@color/colorPrimaryDarkTransparent"
         android:paddingBottom="@dimen/activity_vertical_margin"
         android:paddingLeft="@dimen/activity_horizontal_margin"
         android:paddingRight="@dimen/activity_horizontal_margin"
         android:paddingTop="@dimen/activity_vertical_margin"
-        android:textSize="@dimen/header_textsize"
-        android:textStyle="bold" />
+        android:textColor="@color/textColorPrimary"
+        android:textSize="@dimen/body_textsize" />
 
+    <Button
+        android:id="@+id/button_connect"
+        android:layout_width="wrap_content"
+        android:layout_height="@dimen/button_height"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
+        android:layout_marginBottom="@dimen/activity_vertical_margin"
+        android:layout_marginLeft="@dimen/activity_horizontal_margin"
+        android:layout_marginRight="@dimen/activity_horizontal_margin"
+        android:layout_marginTop="@dimen/activity_vertical_margin"
+        android:background="@color/colorPrimaryDark"
+        android:text="@string/connect"
+        android:textColor="@color/text"
+        android:textSize="@dimen/body_textsize" />
 </RelativeLayout>

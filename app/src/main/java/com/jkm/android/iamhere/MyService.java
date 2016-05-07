@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.IntentSender;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.hardware.GeomagneticField;
 import android.location.Location;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -30,10 +31,15 @@ public class MyService extends Service implements
         LocationListener {
 
     private static final String TAG = MyService.class.getSimpleName();
-    ArrayList<String> checkpointLat = new ArrayList<>();
-    ArrayList<String> checkpointLng = new ArrayList<>();
-    Location checkpoint = new Location("Checkpoint");
-    int count = 0;
+    ArrayList<String> checkpointBearingLat = new ArrayList<>();
+    ArrayList<String> checkpointBearingLng = new ArrayList<>();
+    ArrayList<String> checkpointDistanceLat = new ArrayList<>();
+    ArrayList<String> checkpointDistanceLng = new ArrayList<>();
+    Location checkpointDistance = new Location("CheckpointDistance");
+    Location checkpointBearing = new Location("CheckpointBearing");
+    int distanceCount = 0, bearingCount = 0;
+    boolean hasDeclination = false;
+    float declination = 0;
 
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
     private GoogleApiClient mGoogleApiClient;
@@ -53,11 +59,14 @@ public class MyService extends Service implements
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
         mLocationRequest.setInterval(1000);
         mLocationRequest.setFastestInterval(500);
+        mLocationRequest.setSmallestDisplacement(2);
 
         mGoogleApiClient.connect();
 
-        savePreferences(getResources().getString(R.string.checkpoint_lat), "0");
-        savePreferences(getResources().getString(R.string.checkpoint_lng), "0");
+        savePreferences(getResources().getString(R.string.checkpoint_bearing_lat), "0");
+        savePreferences(getResources().getString(R.string.checkpoint_bearing_lng), "0");
+        savePreferences(getResources().getString(R.string.checkpoint_distance_lat), "0");
+        savePreferences(getResources().getString(R.string.checkpoint_distance_lng), "0");
     }
 
     @Override
@@ -69,11 +78,17 @@ public class MyService extends Service implements
     public int onStartCommand(Intent intent, int flags, int startId) {
         super.onStartCommand(intent, flags, startId);
         Log.i(TAG, "onStartCommand");
-        count = 0;
-        checkpointLat = loadSavedPreferences(getResources().getString(R.string.checkpoint_lat));
-        checkpointLng = loadSavedPreferences(getResources().getString(R.string.checkpoint_lng));
-        Log.i(TAG, "checkpointLat = " + checkpointLat.toString());
-        Log.i(TAG, "checkpointLng = " + checkpointLng.toString());
+        distanceCount = 0;
+        bearingCount = distanceCount;
+        hasDeclination = false;
+        checkpointBearingLat = loadSavedPreferences(getResources().getString(R.string.checkpoint_bearing_lat));
+        checkpointBearingLng = loadSavedPreferences(getResources().getString(R.string.checkpoint_bearing_lng));
+        checkpointDistanceLat = loadSavedPreferences(getResources().getString(R.string.checkpoint_distance_lat));
+        checkpointDistanceLng = loadSavedPreferences(getResources().getString(R.string.checkpoint_distance_lng));
+        Log.i(TAG, "checkpointBearingLat = " + checkpointBearingLat.toString());
+        Log.i(TAG, "checkpointBearingLng = " + checkpointBearingLng.toString());
+        Log.i(TAG, "checkpointDistanceLat = " + checkpointDistanceLat.toString());
+        Log.i(TAG, "checkpointDistanceLng = " + checkpointDistanceLng.toString());
         return START_STICKY;
     }
 
@@ -90,42 +105,78 @@ public class MyService extends Service implements
     @Override
     public void onLocationChanged(Location location) {
         Log.i(TAG, "onLocationChanged: " + location.getLatitude() + ", " + location.getLongitude());
-        Intent i = new Intent(getResources().getString(R.string.location_change_intent));
-        i.putExtra(getResources().getString(R.string.location_change_key), location);
-        sendBroadcast(i);
-        SendDataToHardware(location, checkpointLat, checkpointLng);
+        if (!hasDeclination) {
+            declination = getMagneticDeclination(location);
+            Log.v(TAG, "declination = " + declination);
+            hasDeclination = true;
+        }
+        float accuracy = location.getAccuracy();
+        Log.v(TAG, "accuracy = " + accuracy);
+        if (location.hasAccuracy() && accuracy < 25) {
+            Intent i = new Intent(getResources().getString(R.string.location_change_intent));
+            i.putExtra(getResources().getString(R.string.location_change_key), location);
+            sendBroadcast(i);
+            SendDataToHardware(location, checkpointDistanceLat, checkpointDistanceLng, checkpointBearingLat, checkpointBearingLng);
+        }
     }
 
-    private void SendDataToHardware(Location startingPoint, ArrayList<String> checkpointLat, ArrayList<String> checkpointLng) {
+    private float getMagneticDeclination(Location location) {
+        GeomagneticField geoField = new GeomagneticField((float) location.getLatitude(), (float) location.getLongitude(),
+                (float) location.getAltitude(), System.currentTimeMillis());
+        return geoField.getDeclination();
+    }
+
+    private void SendDataToHardware(Location startingPoint,
+                                    ArrayList<String> checkpointDistanceLat, ArrayList<String> checkpointDistanceLng,
+                                    ArrayList<String> checkpointBearingLat, ArrayList<String> checkpointBearingLng) {
         String sendData;
         float distance, bearing;
-        int intDistance, intBearing;
-        LatLng startLatLng, destinationLatLng;
-        if (count < checkpointLat.size()) {
-            double lat = Double.valueOf(checkpointLat.get(count));
-            double lng = Double.valueOf(checkpointLng.get(count));
-            checkpoint.setLatitude(lat);
-            checkpoint.setLongitude(lng);
-            if (checkpoint.getLatitude() != 0 && checkpoint.getLongitude() != 0) {
-                distance = startingPoint.distanceTo(checkpoint);
-                Log.v(TAG, "distance = " + distance);
-
+        int intDistance, intDirection;
+        LatLng startLatLng, distanceEndLatLng, bearingEndLatLng;
+        if (distanceCount < checkpointDistanceLat.size() || bearingCount < checkpointBearingLat.size()) {
+            double dlat = Double.valueOf(checkpointDistanceLat.get(distanceCount));
+            double dlng = Double.valueOf(checkpointDistanceLng.get(distanceCount));
+            double blat = Double.valueOf(checkpointBearingLat.get(bearingCount));
+            double blng = Double.valueOf(checkpointBearingLng.get(bearingCount));
+            checkpointDistance.setLatitude(dlat);
+            checkpointDistance.setLongitude(dlng);
+            checkpointBearing.setLatitude(blat);
+            checkpointBearing.setLongitude(blng);
+            if (dlat != 0 && dlng != 0 && blat != 0 && blng != 0) {
                 startLatLng = new LatLng(startingPoint.getLatitude(), startingPoint.getLongitude());
-                destinationLatLng = new LatLng(checkpoint.getLatitude(), checkpoint.getLongitude());
+                distanceEndLatLng = new LatLng(checkpointDistance.getLatitude(), checkpointDistance.getLongitude());
+                bearingEndLatLng = new LatLng(checkpointBearing.getLatitude(), checkpointBearing.getLongitude());
 
-                bearing = getBearing(startLatLng, destinationLatLng);
-                Log.v(TAG, "bearing = " + bearing);
+                distance = startingPoint.distanceTo(checkpointDistance);
+                Log.v(TAG, "distance " + distanceCount + " = " + distance);
+                Log.v(TAG, "distance with formula = " + getDistanceWithFormula(startLatLng, distanceEndLatLng));
+
+                bearing = ((startingPoint.bearingTo(checkpointBearing)) + 360) % 360;
+                int distanceToCheckpointBearing = (int) startingPoint.distanceTo(checkpointBearing);
+                Log.v(TAG, "bearing " + bearingCount + " = " + bearing);
+                Log.v(TAG, "bearing with if/else = " + getBearing(startLatLng, bearingEndLatLng));
+                Log.v(TAG, "bearing with formula = " + getBearingWithFormula(startLatLng, bearingEndLatLng));
 
                 intDistance = (int) distance;
-                intBearing = (int) bearing;
-                sendData = "#" + intDistance + "," + intBearing + "\n";
+                intDirection = (int) (bearing - declination);
+                sendData = "#" + intDistance + "," + intDirection + "\n";
+                String passData = "Distance " + distanceCount + " = " + intDistance +
+                        ", direction " + bearingCount + " = " + intDirection;
                 Log.v(TAG, "data = " + sendData);
                 Intent i = new Intent(getResources().getString(R.string.data_sent_intent));
-                i.putExtra(getResources().getString(R.string.data_sent_key), sendData);
+                i.putExtra(getResources().getString(R.string.data_sent_key), passData);
                 sendBroadcast(i);
                 if (distance < 10)
-                    count++;
+                    distanceCount++;
+                if (distanceToCheckpointBearing < 10)
+                    bearingCount++;
             }
+        } else {
+            String complete = "Navigation has finished.";
+            Intent i = new Intent(getResources().getString(R.string.data_sent_intent));
+            i.putExtra(getResources().getString(R.string.data_sent_key), complete);
+            sendBroadcast(i);
+            stopService(new Intent(this, MyService.class));
         }
     }
 
@@ -162,6 +213,31 @@ public class MyService extends Service implements
         else if (begin.latitude < end.latitude && begin.longitude >= end.longitude)
             return (float) ((90 - Math.toDegrees(Math.atan(lng / lat))) + 270);
         return -1;
+    }
+
+    private float getBearingWithFormula(LatLng begin, LatLng end) {
+        double thetaA = Math.toRadians(begin.latitude);
+        double lambdaA = Math.toRadians(begin.longitude);
+        double thetaB = Math.toRadians(end.latitude);
+        double lambdaB = Math.toRadians(end.longitude);
+
+        double y = Math.sin(lambdaB - lambdaA) * Math.cos(thetaB);
+        double x = Math.cos(thetaA) * Math.sin(thetaB) - Math.sin(thetaA) * Math.cos(thetaB) * Math.cos(lambdaB - lambdaA);
+        return (float) ((Math.toDegrees(Math.atan2(y, x)) + 360) % 360);
+    }
+
+    private float getDistanceWithFormula(LatLng begin, LatLng end) {
+        final int earthRadius = 6371000;
+        double thetaA = Math.toRadians(begin.latitude);
+        double lambdaA = Math.toRadians(begin.longitude);
+        double thetaB = Math.toRadians(end.latitude);
+        double lambdaB = Math.toRadians(end.longitude);
+        double dTheta = thetaB - thetaA;
+        double dLambda = lambdaB - lambdaA;
+
+        double a = Math.sin(dTheta / 2) * Math.sin(dTheta / 2) +
+                Math.cos(thetaA) * Math.cos(thetaB) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
+        return (float) (2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
     }
 
     @Override

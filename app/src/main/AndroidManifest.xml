@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.jkm.android.iamhere">
 
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="true" />
+
     <!--
          The ACCESS_COARSE/FINE_LOCATION permissions are not required to use
          Google Maps Android API v2, but you must specify either coarse or fine
@@ -76,5 +80,6 @@
         </activity>
 
         <service android:name=".MyService" />
+        <service android:name=".BLEService" android:enabled="true"/>
     </application>
 </manifest>

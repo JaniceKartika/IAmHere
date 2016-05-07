@@ -3,6 +3,9 @@ package com.jkm.android.iamhere;
 import android.Manifest;
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -23,9 +26,13 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewTreeObserver;
 import android.view.animation.Interpolator;
 import android.view.animation.LinearInterpolator;
+import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
@@ -72,7 +79,7 @@ public class MapsActivity extends AppCompatActivity implements
     public static final String TAG = MapsActivity.class.getSimpleName();
 
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
-    private final static int PLACE_AUTOCOMPLETE_REQUEST_CODE = 1;
+    private final static int PLACE_AUTOCOMPLETE_REQUEST_CODE = 10;
     protected static final int REQUEST_CHECK_SETTINGS = 1000;
 
     private GoogleMap mMap; // Might be null if Google Play services APK is not available.
@@ -90,12 +97,21 @@ public class MapsActivity extends AppCompatActivity implements
     LatLng startLatLng, destinationLatLng;
     Marker startMarker, destinationMarker;
     ArrayList<Marker> checkpointMarker = new ArrayList<>();
-    ArrayList<String> checkpointLat = new ArrayList<>();
-    ArrayList<String> checkpointLng = new ArrayList<>();
+    ArrayList<String> checkpointDistanceLat = new ArrayList<>();
+    ArrayList<String> checkpointDistanceLng = new ArrayList<>();
+    ArrayList<String> checkpointBearingLat = new ArrayList<>();
+    ArrayList<String> checkpointBearingLng = new ArrayList<>();
     float zoomLevel = (float) 16.0; //This goes up to 21
     Polyline PolylineRoute;
 
+    private BluetoothAdapter mBluetoothAdapter;
+    boolean mScanning;
+    private Handler mHandler;
+    private static final int REQUEST_ENABLE_BT = 1;
+    private static final long SCAN_PERIOD = 10000;
+
     TextView tvDebug;
+    Button btConnect;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -106,6 +122,7 @@ public class MapsActivity extends AppCompatActivity implements
         setSupportActionBar(toolbar);
 
         tvDebug = (TextView) findViewById(R.id.textview_debug);
+        btConnect = (Button) findViewById(R.id.button_connect);
 
         setUpMapIfNeeded();
 
@@ -128,19 +145,58 @@ public class MapsActivity extends AppCompatActivity implements
         destinationLocation.setLatitude(0);
         destinationLocation.setLongitude(0);
 
+        mHandler = new Handler();
+        if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+            Toast.makeText(this, getResources().getString(R.string.ble_not_supported), Toast.LENGTH_LONG).show();
+            finish();
+        }
+        final BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        mBluetoothAdapter = bluetoothManager.getAdapter();
+        if (mBluetoothAdapter == null) {
+            Toast.makeText(this, getResources().getString(R.string.bluetooth_not_supported), Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+        btConnect.setVisibility(View.GONE);
+
         if (isMyServiceRunning(MyService.class)) {
             hasPop = loadSavedPreferencesBoolean(getResources().getString(R.string.settings_has_pop));
-            checkpointLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_lat));
-            checkpointLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_lng));
+            checkpointBearingLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_bearing_lat));
+            checkpointBearingLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_bearing_lng));
+            checkpointDistanceLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_distance_lat));
+            checkpointDistanceLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_distance_lng));
             EncodedPolyline = loadSavedPreferencesString(getResources().getString(R.string.string_polyline));
         } else {
             hasPop = false;
             savePreferences(getResources().getString(R.string.settings_has_pop), hasPop);
-            checkpointLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.just_null));
-            checkpointLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.just_null));
+            checkpointBearingLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.just_null));
+            checkpointBearingLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.just_null));
+            checkpointDistanceLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.just_null));
+            checkpointDistanceLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.just_null));
             EncodedPolyline = null;
             savePreferences(getResources().getString(R.string.string_polyline), EncodedPolyline);
         }
+
+        btConnect.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!mBluetoothAdapter.isEnabled()) {
+                    Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                    startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+                } else {
+                    scanLeDevice(true);
+                    btConnect.setVisibility(View.GONE);
+                }
+            }
+        });
+
+        tvDebug.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                tvDebug.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                mMap.setPadding(0, tvDebug.getHeight(), 0, 0);
+            }
+        });
     }
 
     @Override
@@ -154,11 +210,14 @@ public class MapsActivity extends AppCompatActivity implements
     protected void onResume() {
         super.onResume();
         Log.v(TAG, "Im on onResume");
+
         setUpMapIfNeeded();
         mGoogleApiClient.connect();
+
         IntentFilter filter = new IntentFilter(getResources().getString(R.string.data_sent_intent));
         filter.addAction(getResources().getString(R.string.location_change_intent));
         registerReceiver(UpdateUI, filter);
+
         if (!isMyServiceRunning(MyService.class))
             startService(new Intent(this, MyService.class));
         //stopService(new Intent(this, MyService.class));
@@ -173,6 +232,7 @@ public class MapsActivity extends AppCompatActivity implements
             mGoogleApiClient.disconnect();
         }
         unregisterReceiver(UpdateUI);
+        scanLeDevice(false);
     }
 
     @Override
@@ -180,6 +240,38 @@ public class MapsActivity extends AppCompatActivity implements
         super.onDestroy();
         Log.v(TAG, "Im on onDestroy");
     }
+
+    private void scanLeDevice(final boolean enable) {
+        if (enable) {
+            mHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    mScanning = false;
+                    mBluetoothAdapter.stopLeScan(mLeScanCallback);
+                    invalidateOptionsMenu();
+                    if (tvDebug.getText() != null)
+                        tvDebug.append(getResources().getString(R.string.scan_stopped));
+                    else
+                        tvDebug.setText(getResources().getString(R.string.scan_stopped));
+                    btConnect.setVisibility(View.VISIBLE);
+                }
+            }, SCAN_PERIOD);
+            mScanning = true;
+            mBluetoothAdapter.startLeScan(mLeScanCallback);
+            tvDebug.setText(getResources().getString(R.string.start_scanning));
+        } else {
+            mScanning = false;
+            mBluetoothAdapter.stopLeScan(mLeScanCallback);
+        }
+        invalidateOptionsMenu();
+    }
+
+    private BluetoothAdapter.LeScanCallback mLeScanCallback = new BluetoothAdapter.LeScanCallback() {
+        @Override
+        public void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord) {
+            tvDebug.setText("Hardware found. Device name: " + device.getName() + ", address: " + device.getAddress() + ". ");
+        }
+    };
 
     private boolean isMyServiceRunning(Class<?> serviceClass) {
         ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
@@ -191,7 +283,9 @@ public class MapsActivity extends AppCompatActivity implements
         return false;
     }
 
-    private void updateUIOnMap(ArrayList<String> checkpointLat, ArrayList<String> checkpointLng, String EncodedOverviewPolyline) {
+    private void updateUIOnMap(ArrayList<String> checkpointBearingLat, ArrayList<String> checkpointBearingLng,
+                               ArrayList<String> checkpointDistanceLat, ArrayList<String> checkpointDistanceLng,
+                               String EncodedOverviewPolyline) {
         if (EncodedOverviewPolyline != null) {
             ArrayList<LatLng> DecodedPoly = decodePoly(EncodedOverviewPolyline);
             PolylineOptions route = new PolylineOptions();
@@ -201,12 +295,23 @@ public class MapsActivity extends AppCompatActivity implements
             route.color(R.color.colorPrimaryDark).width(7);
             PolylineRoute = mMap.addPolyline(route);
         }
-        for (int i = 0; i < checkpointLat.size(); i++) {
-            double lat = Double.valueOf(checkpointLat.get(i));
-            double lng = Double.valueOf(checkpointLng.get(i));
+        for (int i = 0; i < checkpointBearingLat.size(); i++) {
+            double blat = Double.valueOf(checkpointBearingLat.get(i));
+            double blng = Double.valueOf(checkpointBearingLng.get(i));
+            LatLng bearingLatLng = new LatLng(blat, blng);
+            if (bearingLatLng.latitude != 0 && bearingLatLng.longitude != 0) {
+                MarkerOptions markerOptions = new MarkerOptions()
+                        .position(bearingLatLng)
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.checkpoint_green_icon));
+                checkpointMarker.add(mMap.addMarker(markerOptions));
+            }
+        }
+        for (int i = 0; i < checkpointDistanceLat.size(); i++) {
+            double lat = Double.valueOf(checkpointDistanceLat.get(i));
+            double lng = Double.valueOf(checkpointDistanceLng.get(i));
             LatLng checkpointLatLng = new LatLng(lat, lng);
             if (checkpointLatLng.latitude != 0 && checkpointLatLng.longitude != 0) {
-                if (i == checkpointLat.size() - 1) {
+                if (i == checkpointDistanceLat.size() - 1) {
                     MarkerOptions markerOptions = new MarkerOptions()
                             .position(checkpointLatLng)
                             .title("Destination")
@@ -284,7 +389,7 @@ public class MapsActivity extends AppCompatActivity implements
         setUpMap();
         mMap.setOnMapClickListener(this);
         cleanUpMap();
-        updateUIOnMap(checkpointLat, checkpointLng, EncodedPolyline);
+        updateUIOnMap(checkpointBearingLat, checkpointBearingLng, checkpointDistanceLat, checkpointDistanceLng, EncodedPolyline);
     }
 
     private void setUpMap() {
@@ -347,7 +452,8 @@ public class MapsActivity extends AppCompatActivity implements
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             Location location = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
             //LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
-            handleNewLocation(location);
+            if (location != null)
+                handleNewLocation(location);
         }
     }
 
@@ -399,6 +505,7 @@ public class MapsActivity extends AppCompatActivity implements
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.menu_main, menu);
+        Log.i(TAG, "onCreateOptionsMenu");
         return true;
     }
 
@@ -527,13 +634,17 @@ public class MapsActivity extends AppCompatActivity implements
         private static final String LATITUDE_PARAM = "lat";
         private static final String LONGITUDE_PARAM = "lng";
         private static final String API_KEY_PARAM = "key";
+        private static final String STATUS_PARAM = "status";
 
-        double StartStepLat, StartStepLng, DestinationStepLat, DestinationStepLng;
+        double StartStepLat, StartStepLng, EndStepLat, EndStepLng;
+        String status;
 
         @Override
         protected void onPreExecute() {
-            checkpointLat.clear();
-            checkpointLng.clear();
+            checkpointBearingLat.clear();
+            checkpointBearingLng.clear();
+            checkpointDistanceLat.clear();
+            checkpointDistanceLng.clear();
         }
 
         @Override
@@ -555,63 +666,63 @@ public class MapsActivity extends AppCompatActivity implements
                 JSONObject json = jsonParser.makeHttpRequest(BASE_URL, "GET", params);
                 if (json != null) {
                     //Log.i(TAG, json.toString());
-                    JSONArray RouteDataArray = json.getJSONArray(ROUTES_PARAM);
-                    JSONObject RouteDataObject = RouteDataArray.getJSONObject(0);
-                    JSONObject OverviewPolylineObject = RouteDataObject.getJSONObject(OVERVIEW_POLYLINE_PARAM);
-                    String EncodedOverviewPolyline = OverviewPolylineObject.getString(POINTS_PARAM);
-                    savePreferences(getResources().getString(R.string.string_polyline), EncodedOverviewPolyline);
-                    //Log.i(TAG, "Encoded Polyline = " + EncodedOverviewPolyline);
-                    final ArrayList<LatLng> DecodedPoly = decodePoly(EncodedOverviewPolyline);
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            PolylineOptions route = new PolylineOptions();
-                            for (int i = 0; i < DecodedPoly.size(); i++) {
-                                route.add(new LatLng(DecodedPoly.get(i).latitude, DecodedPoly.get(i).longitude));
-                            }
-                            route.color(R.color.colorPrimaryDark).width(7);
-                            PolylineRoute = mMap.addPolyline(route);
-                        }
-                    });
-
-                    JSONArray LegsDataArray = RouteDataObject.getJSONArray(LEGS_PARAM);
-                    JSONObject LegsDataObject = LegsDataArray.getJSONObject(0);
-                    JSONArray StepsDataArray = LegsDataObject.getJSONArray(STEPS_PARAM);
-                    for (int i = 0; i < StepsDataArray.length(); i++) {
-                        JSONObject StepsDataObject = StepsDataArray.getJSONObject(i);
-                        JSONObject startLatLng = StepsDataObject.getJSONObject(START_LOCATION_PARAM);
-                        JSONObject endLatLng = StepsDataObject.getJSONObject(END_LOCATION_PARAM);
-
-                        StartStepLat = startLatLng.getDouble(LATITUDE_PARAM);
-                        StartStepLng = startLatLng.getDouble(LONGITUDE_PARAM);
-                        DestinationStepLat = endLatLng.getDouble(LATITUDE_PARAM);
-                        DestinationStepLng = endLatLng.getDouble(LONGITUDE_PARAM);
-
-                        final LatLng stepLatLng = new LatLng(DestinationStepLat, DestinationStepLng);
-                        //LatLng checkpoint = new LatLng(DestinationStepLat, DestinationStepLng);
-
-                        checkpointLat.add(String.valueOf(DestinationStepLat));
-                        checkpointLng.add(String.valueOf(DestinationStepLng));
-
-                        Log.i(TAG, "Start Lat:" + i + " " + StartStepLat);
-                        Log.i(TAG, "Start Lng:" + i + " " + StartStepLng);
-                        Log.i(TAG, "End Lat:" + i + " " + DestinationStepLat);
-                        Log.i(TAG, "End Lng:" + i + " " + DestinationStepLng);
-
-                        if (i < StepsDataArray.length() - 1) {
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    MarkerOptions markerOptions = new MarkerOptions().position(stepLatLng).
-                                            icon(BitmapDescriptorFactory.fromResource(R.drawable.checkpoint_icon));
+                    status = json.getString(STATUS_PARAM);
+                    if (status.equals("OK")) {
+                        JSONArray RouteDataArray = json.getJSONArray(ROUTES_PARAM);
+                        JSONObject RouteDataObject = RouteDataArray.getJSONObject(0);
+                        JSONObject OverviewPolylineObject = RouteDataObject.getJSONObject(OVERVIEW_POLYLINE_PARAM);
+                        String EncodedOverviewPolyline = OverviewPolylineObject.getString(POINTS_PARAM);
+                        savePreferences(getResources().getString(R.string.string_polyline), EncodedOverviewPolyline);
+                        //Log.i(TAG, "Encoded Polyline = " + EncodedOverviewPolyline);
+                        final ArrayList<LatLng> DecodedPoly = decodePoly(EncodedOverviewPolyline);
+                        //Log.i(TAG, "LatLng Polyline = " + DecodedPoly.toString());
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                PolylineOptions route = new PolylineOptions();
+                                for (int i = 0; i < DecodedPoly.size(); i++) {
+                                    checkpointBearingLat.add(String.valueOf(DecodedPoly.get(i).latitude));
+                                    checkpointBearingLng.add(String.valueOf(DecodedPoly.get(i).longitude));
+                                    route.add(new LatLng(DecodedPoly.get(i).latitude, DecodedPoly.get(i).longitude));
+                                    MarkerOptions markerOptions = new MarkerOptions().position(DecodedPoly.get(i)).
+                                            icon(BitmapDescriptorFactory.fromResource(R.drawable.checkpoint_green_icon));
                                     checkpointMarker.add(mMap.addMarker(markerOptions));
                                 }
-                            });
+                                route.color(R.color.colorPrimaryDark).width(7);
+                                PolylineRoute = mMap.addPolyline(route);
+                            }
+                        });
+
+                        JSONArray LegsDataArray = RouteDataObject.getJSONArray(LEGS_PARAM);
+                        JSONObject LegsDataObject = LegsDataArray.getJSONObject(0);
+                        JSONArray StepsDataArray = LegsDataObject.getJSONArray(STEPS_PARAM);
+                        for (int i = 0; i < StepsDataArray.length(); i++) {
+                            JSONObject StepsDataObject = StepsDataArray.getJSONObject(i);
+                            JSONObject startLatLng = StepsDataObject.getJSONObject(START_LOCATION_PARAM);
+                            JSONObject endLatLng = StepsDataObject.getJSONObject(END_LOCATION_PARAM);
+
+                            StartStepLat = startLatLng.getDouble(LATITUDE_PARAM);
+                            StartStepLng = startLatLng.getDouble(LONGITUDE_PARAM);
+                            EndStepLat = endLatLng.getDouble(LATITUDE_PARAM);
+                            EndStepLng = endLatLng.getDouble(LONGITUDE_PARAM);
+
+                            final LatLng stepLatLng = new LatLng(EndStepLat, EndStepLng);
+
+                            checkpointDistanceLat.add(String.valueOf(EndStepLat));
+                            checkpointDistanceLng.add(String.valueOf(EndStepLng));
+
+                            if (i < StepsDataArray.length() - 1) {
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        MarkerOptions markerOptions = new MarkerOptions().position(stepLatLng).
+                                                icon(BitmapDescriptorFactory.fromResource(R.drawable.checkpoint_icon));
+                                        checkpointMarker.add(mMap.addMarker(markerOptions));
+                                    }
+                                });
+                            }
                         }
                     }
-                    savePreferences(getResources().getString(R.string.checkpoint_lat), checkpointLat);
-                    savePreferences(getResources().getString(R.string.checkpoint_lng), checkpointLng);
-                    startService(new Intent(getApplicationContext(), MyService.class));
                 } else {
                     Log.i(TAG, "json null");
                 }
@@ -622,8 +733,20 @@ public class MapsActivity extends AppCompatActivity implements
         }
 
         protected void onPostExecute(JSONObject json) {
-            Log.i(TAG, "checkpointLat = " + checkpointLat.toString());
-            Log.i(TAG, "checkpointLng = " + checkpointLng.toString());
+            if (status.equals("OK")) {
+                Log.i(TAG, "checkpointBearingLat = " + checkpointBearingLat.toString());
+                Log.i(TAG, "checkpointBearingLng = " + checkpointBearingLng.toString());
+                Log.i(TAG, "checkpointDistanceLat = " + checkpointDistanceLat.toString());
+                Log.i(TAG, "checkpointDistanceLng = " + checkpointDistanceLng.toString());
+                savePreferences(getResources().getString(R.string.checkpoint_bearing_lat), checkpointBearingLat);
+                savePreferences(getResources().getString(R.string.checkpoint_bearing_lng), checkpointBearingLng);
+                savePreferences(getResources().getString(R.string.checkpoint_distance_lat), checkpointDistanceLat);
+                savePreferences(getResources().getString(R.string.checkpoint_distance_lng), checkpointDistanceLng);
+                startService(new Intent(getApplicationContext(), MyService.class));
+                btConnect.setVisibility(View.VISIBLE);
+            } else {
+                tvDebug.setText(getResources().getString(R.string.failed_obtain_data));
+            }
         }
     }
 
