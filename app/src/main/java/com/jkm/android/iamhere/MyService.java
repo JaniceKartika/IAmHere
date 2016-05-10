@@ -57,16 +57,11 @@ public class MyService extends Service implements
 
         mLocationRequest = new LocationRequest();
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        mLocationRequest.setInterval(1000);
-        mLocationRequest.setFastestInterval(500);
-        mLocationRequest.setSmallestDisplacement(2);
+        mLocationRequest.setInterval(0);
+        mLocationRequest.setFastestInterval(0);
+        //mLocationRequest.setSmallestDisplacement(2);
 
         mGoogleApiClient.connect();
-
-        savePreferences(getResources().getString(R.string.checkpoint_bearing_lat), "0");
-        savePreferences(getResources().getString(R.string.checkpoint_bearing_lng), "0");
-        savePreferences(getResources().getString(R.string.checkpoint_distance_lat), "0");
-        savePreferences(getResources().getString(R.string.checkpoint_distance_lng), "0");
     }
 
     @Override
@@ -79,7 +74,7 @@ public class MyService extends Service implements
         super.onStartCommand(intent, flags, startId);
         Log.i(TAG, "onStartCommand");
         distanceCount = 0;
-        bearingCount = distanceCount;
+        bearingCount = 1;
         hasDeclination = false;
         checkpointBearingLat = loadSavedPreferences(getResources().getString(R.string.checkpoint_bearing_lat));
         checkpointBearingLng = loadSavedPreferences(getResources().getString(R.string.checkpoint_bearing_lng));
@@ -96,6 +91,12 @@ public class MyService extends Service implements
     public void onDestroy() {
         Log.i(TAG, "onDestroy");
         super.onDestroy();
+        savePreferences(getResources().getString(R.string.checkpoint_bearing_lat), "0");
+        savePreferences(getResources().getString(R.string.checkpoint_bearing_lng), "0");
+        savePreferences(getResources().getString(R.string.checkpoint_distance_lat), "0");
+        savePreferences(getResources().getString(R.string.checkpoint_distance_lng), "0");
+        savePreferences(getResources().getString(R.string.settings_has_pop), false);
+        savePreferences(getResources().getString(R.string.string_polyline), null);
         if (mGoogleApiClient.isConnected()) {
             LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
             mGoogleApiClient.disconnect();
@@ -112,7 +113,12 @@ public class MyService extends Service implements
         }
         float accuracy = location.getAccuracy();
         Log.v(TAG, "accuracy = " + accuracy);
-        if (location.hasAccuracy() && accuracy < 25) {
+        KalmanLatLng mKalmanLatLng = new KalmanLatLng(5);
+        LatLng Kalman = mKalmanLatLng.Process(location.getLatitude(), location.getLongitude(), 1, System.currentTimeMillis());
+        Log.v(TAG, "Kalman: Lat = " + Kalman.latitude + ", Lng = " + Kalman.longitude);
+        if (location.hasAccuracy() && accuracy < 50) {
+            location.setLatitude(Kalman.latitude);
+            location.setLongitude(Kalman.longitude);
             Intent i = new Intent(getResources().getString(R.string.location_change_intent));
             i.putExtra(getResources().getString(R.string.location_change_key), location);
             sendBroadcast(i);
@@ -133,16 +139,27 @@ public class MyService extends Service implements
         float distance, bearing;
         int intDistance, intDirection;
         LatLng startLatLng, distanceEndLatLng, bearingEndLatLng;
-        if (distanceCount < checkpointDistanceLat.size() || bearingCount < checkpointBearingLat.size()) {
-            double dlat = Double.valueOf(checkpointDistanceLat.get(distanceCount));
-            double dlng = Double.valueOf(checkpointDistanceLng.get(distanceCount));
+        double nextBLat = 0, nextBLng = 0;
+        Location nextBearing = new Location("NextBearing");
+
+        double dlat = Double.valueOf(checkpointDistanceLat.get(distanceCount));
+        double dlng = Double.valueOf(checkpointDistanceLng.get(distanceCount));
+
+        if (dlat != 0 && dlng != 0) {
             double blat = Double.valueOf(checkpointBearingLat.get(bearingCount));
             double blng = Double.valueOf(checkpointBearingLng.get(bearingCount));
-            checkpointDistance.setLatitude(dlat);
-            checkpointDistance.setLongitude(dlng);
-            checkpointBearing.setLatitude(blat);
-            checkpointBearing.setLongitude(blng);
-            if (dlat != 0 && dlng != 0 && blat != 0 && blng != 0) {
+            if (distanceCount < checkpointDistanceLat.size() && bearingCount < checkpointBearingLat.size()) {
+                if (bearingCount < checkpointBearingLat.size() - 1) {
+                    nextBLat = Double.valueOf(checkpointBearingLat.get(bearingCount + 1));
+                    nextBLng = Double.valueOf(checkpointBearingLng.get(bearingCount + 1));
+                }
+                checkpointDistance.setLatitude(dlat);
+                checkpointDistance.setLongitude(dlng);
+                checkpointBearing.setLatitude(blat);
+                checkpointBearing.setLongitude(blng);
+                nextBearing.setLatitude(nextBLat);
+                nextBearing.setLongitude(nextBLng);
+
                 startLatLng = new LatLng(startingPoint.getLatitude(), startingPoint.getLongitude());
                 distanceEndLatLng = new LatLng(checkpointDistance.getLatitude(), checkpointDistance.getLongitude());
                 bearingEndLatLng = new LatLng(checkpointBearing.getLatitude(), checkpointBearing.getLongitude());
@@ -166,18 +183,29 @@ public class MyService extends Service implements
                 Intent i = new Intent(getResources().getString(R.string.data_sent_intent));
                 i.putExtra(getResources().getString(R.string.data_sent_key), passData);
                 sendBroadcast(i);
-                if (distance < 10)
+                if (distance <= 20) {
                     distanceCount++;
-                if (distanceToCheckpointBearing < 10)
-                    bearingCount++;
+                }
+                if (distanceToCheckpointBearing <= 10) {
+                    float inspectBearingDistance = checkpointBearing.distanceTo(nextBearing);
+                    if (inspectBearingDistance <= 10.0) bearingCount += 2;
+                    else bearingCount++;
+                }
+            } else {
+                String complete = "Navigation has finished.";
+                Intent i = new Intent(getResources().getString(R.string.data_sent_intent));
+                i.putExtra(getResources().getString(R.string.data_sent_key), complete);
+                sendBroadcast(i);
+                stopService(new Intent(this, MyService.class));
             }
-        } else {
-            String complete = "Navigation has finished.";
-            Intent i = new Intent(getResources().getString(R.string.data_sent_intent));
-            i.putExtra(getResources().getString(R.string.data_sent_key), complete);
-            sendBroadcast(i);
-            stopService(new Intent(this, MyService.class));
         }
+    }
+
+    private void savePreferences(String key, boolean value) {
+        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putBoolean(key, value);
+        editor.apply();
     }
 
     private void savePreferences(String key, String value) {

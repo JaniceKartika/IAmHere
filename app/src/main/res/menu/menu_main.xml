@@ -8,5 +8,41 @@
         android:id="@+id/search"
         android:icon="@drawable/ic_search"
         android:title="@string/search"
-        app:showAsAction="always" />
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/manual_reroute"
+        android:icon="@drawable/manual_reroute"
+        android:title="@string/manual_reroute"
+        app:showAsAction="collapseActionView" />
+
+    <item
+        android:id="@+id/connect_bt"
+        android:title="@string/connect"
+        app:showAsAction="collapseActionView" />
+
+    <item
+        android:id="@+id/disconnect_bt"
+        android:title="@string/disconnect"
+        app:showAsAction="collapseActionView" />
+
+    <item
+        android:id="@+id/scanning_bt"
+        android:title="@string/scanning"
+        app:showAsAction="collapseActionView" />
+
+    <item
+        android:id="@+id/click_map"
+        android:title="@string/click_map"
+        app:showAsAction="collapseActionView" />
+
+    <item
+        android:id="@+id/click_map_confirm"
+        android:title="@string/click_map_confirm"
+        app:showAsAction="collapseActionView" />
+
+    <item
+        android:id="@+id/log_out"
+        android:title="@string/log_out"
+        app:showAsAction="collapseActionView" />
 </menu>

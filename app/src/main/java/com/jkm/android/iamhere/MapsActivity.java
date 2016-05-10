@@ -26,11 +26,9 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
 import android.view.ViewTreeObserver;
 import android.view.animation.Interpolator;
 import android.view.animation.LinearInterpolator;
-import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -87,10 +85,13 @@ public class MapsActivity extends AppCompatActivity implements
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
 
-    //double currentLat, currentLong, destinationLat, destinationLong;
     int count = 0;
     boolean hasPop = false;
     String EncodedPolyline;
+    boolean hasFinishedSearch = false,
+            isScanningBt = false,
+            isChoosingClickMap = false,
+            hasDoneChooseClickMap = false;
 
     Location startLocation = new Location("Start");
     Location destinationLocation = new Location("Destination");
@@ -111,7 +112,6 @@ public class MapsActivity extends AppCompatActivity implements
     private static final long SCAN_PERIOD = 10000;
 
     TextView tvDebug;
-    Button btConnect;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -122,7 +122,6 @@ public class MapsActivity extends AppCompatActivity implements
         setSupportActionBar(toolbar);
 
         tvDebug = (TextView) findViewById(R.id.textview_debug);
-        btConnect = (Button) findViewById(R.id.button_connect);
 
         setUpMapIfNeeded();
 
@@ -157,44 +156,20 @@ public class MapsActivity extends AppCompatActivity implements
             finish();
             return;
         }
-        btConnect.setVisibility(View.GONE);
 
-        if (isMyServiceRunning(MyService.class)) {
-            hasPop = loadSavedPreferencesBoolean(getResources().getString(R.string.settings_has_pop));
-            checkpointBearingLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_bearing_lat));
-            checkpointBearingLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_bearing_lng));
-            checkpointDistanceLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_distance_lat));
-            checkpointDistanceLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_distance_lng));
-            EncodedPolyline = loadSavedPreferencesString(getResources().getString(R.string.string_polyline));
-        } else {
-            hasPop = false;
-            savePreferences(getResources().getString(R.string.settings_has_pop), hasPop);
-            checkpointBearingLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.just_null));
-            checkpointBearingLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.just_null));
-            checkpointDistanceLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.just_null));
-            checkpointDistanceLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.just_null));
-            EncodedPolyline = null;
-            savePreferences(getResources().getString(R.string.string_polyline), EncodedPolyline);
-        }
-
-        btConnect.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (!mBluetoothAdapter.isEnabled()) {
-                    Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                    startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-                } else {
-                    scanLeDevice(true);
-                    btConnect.setVisibility(View.GONE);
-                }
-            }
-        });
+        checkpointBearingLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_bearing_lat));
+        checkpointBearingLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_bearing_lng));
+        checkpointDistanceLat = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_distance_lat));
+        checkpointDistanceLng = loadSavedPreferencesStringArrayList(getResources().getString(R.string.checkpoint_distance_lng));
+        hasPop = loadSavedPreferencesBoolean(getResources().getString(R.string.settings_has_pop));
+        EncodedPolyline = loadSavedPreferencesString(getResources().getString(R.string.string_polyline));
 
         tvDebug.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
             @Override
             public void onGlobalLayout() {
                 tvDebug.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                mMap.setPadding(0, tvDebug.getHeight(), 0, 0);
+                if (mMap != null)
+                    mMap.setPadding(0, tvDebug.getHeight(), 0, 0);
             }
         });
     }
@@ -253,7 +228,6 @@ public class MapsActivity extends AppCompatActivity implements
                         tvDebug.append(getResources().getString(R.string.scan_stopped));
                     else
                         tvDebug.setText(getResources().getString(R.string.scan_stopped));
-                    btConnect.setVisibility(View.VISIBLE);
                 }
             }, SCAN_PERIOD);
             mScanning = true;
@@ -398,6 +372,8 @@ public class MapsActivity extends AppCompatActivity implements
             mMap.setMyLocationEnabled(true);
         //mMap.setTrafficEnabled(true);
         mMap.getUiSettings().setZoomControlsEnabled(true);
+        if (tvDebug.getHeight() > 0)
+            mMap.setPadding(0, tvDebug.getHeight(), 0, 0);
     }
 
     private void handleNewLocation(Location location) {
@@ -502,6 +478,13 @@ public class MapsActivity extends AppCompatActivity implements
         destinationMarker = mMap.addMarker(markerOptions);
     }
 
+    private void resetMenuFlag() {
+        hasFinishedSearch = false;
+        isScanningBt = false;
+        isChoosingClickMap = false;
+        hasDoneChooseClickMap = false;
+    }
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.menu_main, menu);
@@ -517,6 +500,40 @@ public class MapsActivity extends AppCompatActivity implements
         int id = item.getItemId();
         if (id == R.id.search) {
             callPlaceAutocompleteActivityIntent();
+            return true;
+        } else if (id == R.id.manual_reroute) {
+            if (startLatLng != null && destinationLatLng != null) {
+                cleanUpMap();
+                new GetAsync().execute(
+                        String.valueOf(startLatLng.latitude),
+                        String.valueOf(startLatLng.longitude),
+                        String.valueOf(destinationLatLng.latitude),
+                        String.valueOf(destinationLatLng.longitude));
+                MarkerOptions markerOptions = new MarkerOptions()
+                        .position(destinationLatLng)
+                        .title("Destination")
+                        .draggable(true)
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.destination_icon));
+                destinationMarker = mMap.addMarker(markerOptions);
+            }
+            return true;
+        } else if (id == R.id.connect_bt) {
+            if (!mBluetoothAdapter.isEnabled()) {
+                Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+            } else {
+                scanLeDevice(true);
+            }
+            return true;
+        } else if (id == R.id.disconnect_bt) {
+            return true;
+        } else if (id == R.id.scanning_bt) {
+            return true;
+        } else if (id == R.id.click_map) {
+            return true;
+        } else if (id == R.id.click_map_confirm) {
+            return true;
+        } else if (id == R.id.log_out) {
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -552,16 +569,16 @@ public class MapsActivity extends AppCompatActivity implements
             if (resultCode == RESULT_OK) {
                 Place place = PlaceAutocomplete.getPlace(this, data);
                 Log.i(TAG, "Place: " + place.getName() + ", LatLng = " + place.getLatLng());
-
+                destinationLatLng = new LatLng(place.getLatLng().latitude, place.getLatLng().longitude);
                 new GetAsync().execute(
                         String.valueOf(startLatLng.latitude),
                         String.valueOf(startLatLng.longitude),
-                        String.valueOf(place.getLatLng().latitude),
-                        String.valueOf(place.getLatLng().longitude));
+                        String.valueOf(destinationLatLng.latitude),
+                        String.valueOf(destinationLatLng.longitude));
 
                 cleanUpMap();
                 MarkerOptions markerOptions = new MarkerOptions()
-                        .position(place.getLatLng())
+                        .position(destinationLatLng)
                         .title("Destination")
                         .draggable(true)
                         .icon(BitmapDescriptorFactory.fromResource(R.drawable.destination_icon));
@@ -743,7 +760,6 @@ public class MapsActivity extends AppCompatActivity implements
                 savePreferences(getResources().getString(R.string.checkpoint_distance_lat), checkpointDistanceLat);
                 savePreferences(getResources().getString(R.string.checkpoint_distance_lng), checkpointDistanceLng);
                 startService(new Intent(getApplicationContext(), MyService.class));
-                btConnect.setVisibility(View.VISIBLE);
             } else {
                 tvDebug.setText(getResources().getString(R.string.failed_obtain_data));
             }

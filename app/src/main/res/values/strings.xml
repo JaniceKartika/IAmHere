@@ -7,6 +7,12 @@
     <string name="log_in">Log In</string>
 
     <string name="search">Search</string>
+    <string name="manual_reroute">Reroute</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="scanning">Scanning</string>
+    <string name="click_map">Click on Map</string>
+    <string name="click_map_confirm">OK</string>
+    <string name="log_out">Log Out</string>
     <string name="checkpoint_distance_lat">CheckpointDistanceLat</string>
     <string name="checkpoint_distance_lng">CheckpointDistanceLng</string>
     <string name="checkpoint_bearing_lat">CheckpointBearingLat</string>
