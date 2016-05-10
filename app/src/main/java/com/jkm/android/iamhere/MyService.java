@@ -3,8 +3,15 @@ package com.jkm.android.iamhere;
 import android.Manifest;
 import android.app.Activity;
 import android.app.Service;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattService;
+import android.content.BroadcastReceiver;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.IntentSender;
+import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.hardware.GeomagneticField;
@@ -24,6 +31,7 @@ import com.google.android.gms.maps.model.LatLng;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class MyService extends Service implements
         GoogleApiClient.ConnectionCallbacks,
@@ -45,6 +53,12 @@ public class MyService extends Service implements
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
 
+    private String mDeviceAddress;
+    private BLEService mBLEService;
+    private boolean mConnected = false;
+    private BluetoothGattCharacteristic characteristicTX;
+    private BluetoothGattCharacteristic characteristicRX;
+
     @Override
     public void onCreate() {
         Log.i(TAG, "onCreate");
@@ -62,6 +76,17 @@ public class MyService extends Service implements
         //mLocationRequest.setSmallestDisplacement(2);
 
         mGoogleApiClient.connect();
+
+        Intent gattServiceIntent = new Intent(this, BLEService.class);
+        bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
+
+        IntentFilter filter = new IntentFilter(getResources().getString(R.string.device_address_intent));
+        filter.addAction(getResources().getString(R.string.device_disconnect_intent));
+        filter.addAction(BLEService.ACTION_GATT_CONNECTED);
+        filter.addAction(BLEService.ACTION_GATT_DISCONNECTED);
+        filter.addAction(BLEService.ACTION_GATT_SERVICES_DISCOVERED);
+        filter.addAction(BLEService.ACTION_DATA_AVAILABLE);
+        registerReceiver(myBroadcast, filter);
     }
 
     @Override
@@ -100,6 +125,68 @@ public class MyService extends Service implements
         if (mGoogleApiClient.isConnected()) {
             LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
             mGoogleApiClient.disconnect();
+        }
+        unregisterReceiver(myBroadcast);
+        unbindService(mServiceConnection);
+        mBLEService = null;
+    }
+
+    private final ServiceConnection mServiceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName componentName, IBinder service) {
+            mBLEService = ((BLEService.LocalBinder) service).getService();
+            if (!mBLEService.initialize()) {
+                Log.e(TAG, "Unable to initialize Bluetooth");
+            } else {
+                // Automatically connects to the device upon successful start-up initialization.
+                mBLEService.connect(mDeviceAddress);
+            }
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName componentName) {
+            mBLEService = null;
+        }
+    };
+
+    /* Handles various events fired by the Service.
+       ACTION_GATT_CONNECTED: connected to a GATT server.
+       ACTION_GATT_DISCONNECTED: disconnected from a GATT server.
+       ACTION_GATT_SERVICES_DISCOVERED: discovered GATT services.
+       ACTION_DATA_AVAILABLE: received data from the device.  This can be a result of read or notification operations.
+    */
+    private final BroadcastReceiver myBroadcast = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (BLEService.ACTION_GATT_CONNECTED.equals(action)) {
+                mConnected = true;
+            } else if (BLEService.ACTION_GATT_DISCONNECTED.equals(action)) {
+                mConnected = false;
+            } else if (BLEService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
+                GattServices(mBLEService.getSupportedGattServices());
+            } else if (BLEService.ACTION_DATA_AVAILABLE.equals(action)) {
+                Log.i(TAG, "Data from device: " + mBLEService.EXTRA_DATA);
+            } else if (getResources().getString(R.string.device_address_intent).equals(action)) {
+                mDeviceAddress = intent.getExtras().getString(getResources().getString(R.string.device_address_key));
+                if (mBLEService != null) {
+                    final boolean result = mBLEService.connect(mDeviceAddress);
+                    Log.d(TAG, "Connect request result = " + result);
+                }
+            } else if (getResources().getString(R.string.device_disconnect_intent).equals(action)) {
+                if (mConnected)
+                    mBLEService.disconnect();
+            }
+        }
+    };
+
+    private void GattServices(List<BluetoothGattService> gattServices) {
+        if (gattServices == null) return;
+        // Loops through available GATT Services.
+        for (BluetoothGattService gattService : gattServices) {
+            // get characteristic when UUID matches RX/TX UUID
+            characteristicTX = gattService.getCharacteristic(BLEService.UUID_HM_RX_TX);
+            characteristicRX = gattService.getCharacteristic(BLEService.UUID_HM_RX_TX);
         }
     }
 
@@ -176,7 +263,15 @@ public class MyService extends Service implements
 
                 intDistance = (int) distance;
                 intDirection = (int) (bearing - declination);
+
                 sendData = "#" + intDistance + "," + intDirection + "\n";
+                final byte[] tx = sendData.getBytes();
+                if (mConnected) {
+                    characteristicTX.setValue(tx);
+                    mBLEService.writeCharacteristic(characteristicTX);
+                    mBLEService.setCharacteristicNotification(characteristicRX, true);
+                }
+
                 String passData = "Distance " + distanceCount + " = " + intDistance +
                         ", direction " + bearingCount + " = " + intDirection;
                 Log.v(TAG, "data = " + sendData);

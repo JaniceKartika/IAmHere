@@ -243,7 +243,12 @@ public class MapsActivity extends AppCompatActivity implements
     private BluetoothAdapter.LeScanCallback mLeScanCallback = new BluetoothAdapter.LeScanCallback() {
         @Override
         public void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord) {
-            tvDebug.setText("Hardware found. Device name: " + device.getName() + ", address: " + device.getAddress() + ". ");
+            //TODO filter bluetooth address
+            Intent i = new Intent(getResources().getString(R.string.device_address_intent));
+            i.putExtra(getResources().getString(R.string.device_address_key), device.getAddress());
+            sendBroadcast(i);
+            tvDebug.setText(getResources().getString(R.string.connected_to));
+            tvDebug.append(device.getAddress());
         }
     };
 
@@ -526,14 +531,20 @@ public class MapsActivity extends AppCompatActivity implements
             }
             return true;
         } else if (id == R.id.disconnect_bt) {
+            Intent i = new Intent(getResources().getString(R.string.device_disconnect_intent));
+            sendBroadcast(i);
             return true;
         } else if (id == R.id.scanning_bt) {
+
             return true;
         } else if (id == R.id.click_map) {
+
             return true;
         } else if (id == R.id.click_map_confirm) {
+
             return true;
         } else if (id == R.id.log_out) {
+
             return true;
         }
         return super.onOptionsItemSelected(item);
