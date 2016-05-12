@@ -26,7 +26,7 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.ViewTreeObserver;
+import android.view.View;
 import android.view.animation.Interpolator;
 import android.view.animation.LinearInterpolator;
 import android.widget.TextView;
@@ -72,6 +72,7 @@ public class MapsActivity extends AppCompatActivity implements
         GoogleApiClient.OnConnectionFailedListener,
         /*LocationListener,*/
         GoogleMap.OnMapClickListener,
+        GoogleMap.OnMarkerDragListener,
         OnMapReadyCallback {
 
     public static final String TAG = MapsActivity.class.getSimpleName();
@@ -88,11 +89,7 @@ public class MapsActivity extends AppCompatActivity implements
     int count = 0;
     boolean hasPop = false;
     String EncodedPolyline;
-    boolean hasFinishedSearch = false,
-            isScanningBt = false,
-            isChoosingClickMap = false,
-            hasDoneChooseClickMap = false;
-
+    boolean isBtConnect = false, isChoosingClickMap = false;
     Location startLocation = new Location("Start");
     Location destinationLocation = new Location("Destination");
     LatLng startLatLng, destinationLatLng;
@@ -108,10 +105,13 @@ public class MapsActivity extends AppCompatActivity implements
     private BluetoothAdapter mBluetoothAdapter;
     boolean mScanning;
     private Handler mHandler;
+    private Runnable mRunnable;
     private static final int REQUEST_ENABLE_BT = 1;
     private static final long SCAN_PERIOD = 10000;
+    String mDeviceAddress;
 
     TextView tvDebug;
+    String information, pastInformation;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -164,10 +164,10 @@ public class MapsActivity extends AppCompatActivity implements
         hasPop = loadSavedPreferencesBoolean(getResources().getString(R.string.settings_has_pop));
         EncodedPolyline = loadSavedPreferencesString(getResources().getString(R.string.string_polyline));
 
-        tvDebug.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+        tvDebug.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
             @Override
-            public void onGlobalLayout() {
-                tvDebug.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+            public void onLayoutChange(View v, int left, int top, int right, int bottom,
+                                       int oldLeft, int oldTop, int oldRight, int oldBottom) {
                 if (mMap != null)
                     mMap.setPadding(0, tvDebug.getHeight(), 0, 0);
             }
@@ -191,6 +191,8 @@ public class MapsActivity extends AppCompatActivity implements
 
         IntentFilter filter = new IntentFilter(getResources().getString(R.string.data_sent_intent));
         filter.addAction(getResources().getString(R.string.location_change_intent));
+        filter.addAction(getResources().getString(R.string.ble_connect));
+        filter.addAction(getResources().getString(R.string.ble_disconnect));
         registerReceiver(UpdateUI, filter);
 
         if (!isMyServiceRunning(MyService.class))
@@ -218,21 +220,21 @@ public class MapsActivity extends AppCompatActivity implements
 
     private void scanLeDevice(final boolean enable) {
         if (enable) {
-            mHandler.postDelayed(new Runnable() {
+            mRunnable = new Runnable() {
                 @Override
                 public void run() {
                     mScanning = false;
                     mBluetoothAdapter.stopLeScan(mLeScanCallback);
                     invalidateOptionsMenu();
-                    if (tvDebug.getText() != null)
-                        tvDebug.append(getResources().getString(R.string.scan_stopped));
-                    else
-                        tvDebug.setText(getResources().getString(R.string.scan_stopped));
+                    information = getResources().getString(R.string.scan_stopped);
+                    tvDebug.setText(information);
                 }
-            }, SCAN_PERIOD);
+            };
+            mHandler.postDelayed(mRunnable, SCAN_PERIOD);
             mScanning = true;
             mBluetoothAdapter.startLeScan(mLeScanCallback);
-            tvDebug.setText(getResources().getString(R.string.start_scanning));
+            information = getResources().getString(R.string.start_scanning);
+            tvDebug.setText(information);
         } else {
             mScanning = false;
             mBluetoothAdapter.stopLeScan(mLeScanCallback);
@@ -244,11 +246,14 @@ public class MapsActivity extends AppCompatActivity implements
         @Override
         public void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord) {
             //TODO filter bluetooth address
+            mDeviceAddress = device.getAddress();
+            scanLeDevice(false);
+            mHandler.removeCallbacks(mRunnable);
             Intent i = new Intent(getResources().getString(R.string.device_address_intent));
-            i.putExtra(getResources().getString(R.string.device_address_key), device.getAddress());
+            i.putExtra(getResources().getString(R.string.device_address_key), mDeviceAddress);
             sendBroadcast(i);
-            tvDebug.setText(getResources().getString(R.string.connected_to));
-            tvDebug.append(device.getAddress());
+            information = getResources().getString(R.string.hardware_found) + mDeviceAddress;
+            tvDebug.setText(information);
         }
     };
 
@@ -312,9 +317,24 @@ public class MapsActivity extends AppCompatActivity implements
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
             if (getResources().getString(R.string.data_sent_intent).equals(action)) {
-                tvDebug.setText(intent.getExtras().getString(getResources().getString(R.string.data_sent_key)));
+                if (information != null) {
+                    String info = information + "\n" + intent.getExtras().getString(getResources().getString(R.string.data_sent_key));
+                    tvDebug.setText(info);
+                } else {
+                    tvDebug.setText(intent.getExtras().getString(getResources().getString(R.string.data_sent_key)));
+                }
             } else if (getResources().getString(R.string.location_change_intent).equals(action)) {
                 handleNewLocation((Location) intent.getParcelableExtra(getResources().getString(R.string.location_change_key)));
+            } else if (getResources().getString(R.string.ble_connect).equals(action)) {
+                isBtConnect = true;
+                invalidateOptionsMenu();
+                information = getResources().getString(R.string.connected_to) + mDeviceAddress;
+                tvDebug.setText(information);
+            } else if (getResources().getString(R.string.ble_disconnect).equals(action)) {
+                isBtConnect = false;
+                invalidateOptionsMenu();
+                information = getResources().getString(R.string.disconnected);
+                tvDebug.setText(information);
             }
         }
     };
@@ -367,6 +387,7 @@ public class MapsActivity extends AppCompatActivity implements
         mMap = googleMap;
         setUpMap();
         mMap.setOnMapClickListener(this);
+        mMap.setOnMarkerDragListener(this);
         cleanUpMap();
         updateUIOnMap(checkpointBearingLat, checkpointBearingLng, checkpointDistanceLat, checkpointDistanceLng, EncodedPolyline);
     }
@@ -463,45 +484,89 @@ public class MapsActivity extends AppCompatActivity implements
 
     @Override
     public void onMapClick(LatLng latLng) {
-        //myMap.addMarker(new MarkerOptions().position(point).title(point.toString()));
+        if (isChoosingClickMap) {
+            destinationLocation.setLatitude(latLng.latitude);
+            destinationLocation.setLongitude(latLng.longitude);
 
-        destinationLocation.setLatitude(latLng.latitude);
-        destinationLocation.setLongitude(latLng.longitude);
+            destinationLatLng = new LatLng(latLng.latitude, latLng.longitude);
+            Log.v(TAG, "destination = " + destinationLatLng.toString());
 
-        //Convert Location to LatLng
-        destinationLatLng = new LatLng(latLng.latitude, latLng.longitude);
-        Log.v(TAG, "destination = " + destinationLatLng.toString());
-
-        if (destinationMarker != null)
-            destinationMarker.remove();
-
-        MarkerOptions markerOptions = new MarkerOptions()
-                .position(destinationLatLng)
-                .title("Destination")
-                .draggable(true)
-                .icon(BitmapDescriptorFactory.fromResource(R.drawable.destination_icon));
-        destinationMarker = mMap.addMarker(markerOptions);
+            if (destinationMarker != null)
+                destinationMarker.remove();
+            MarkerOptions markerOptions = new MarkerOptions()
+                    .position(destinationLatLng)
+                    .title("Destination")
+                    .draggable(true)
+                    .icon(BitmapDescriptorFactory.fromResource(R.drawable.destination_icon));
+            destinationMarker = mMap.addMarker(markerOptions);
+        }
     }
 
-    private void resetMenuFlag() {
-        hasFinishedSearch = false;
-        isScanningBt = false;
-        isChoosingClickMap = false;
-        hasDoneChooseClickMap = false;
+    @Override
+    public void onMarkerDragStart(Marker marker) {
+
+    }
+
+    @Override
+    public void onMarkerDrag(Marker marker) {
+
+    }
+
+    @Override
+    public void onMarkerDragEnd(Marker marker) {
+        if (isChoosingClickMap) {
+            destinationLocation.setLatitude(marker.getPosition().latitude);
+            destinationLocation.setLongitude(marker.getPosition().longitude);
+            destinationLatLng = new LatLng(marker.getPosition().latitude, marker.getPosition().longitude);
+            Log.v(TAG, "destination = " + destinationLatLng.toString());
+            destinationMarker = marker;
+        }
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.menu_main, menu);
         Log.i(TAG, "onCreateOptionsMenu");
+        if (isChoosingClickMap) {
+            menu.findItem(R.id.search).setVisible(false);
+            menu.findItem(R.id.manual_reroute).setVisible(false);
+            menu.findItem(R.id.connect_bt).setVisible(false);
+            menu.findItem(R.id.disconnect_bt).setVisible(false);
+            menu.findItem(R.id.scanning_bt).setVisible(false);
+            menu.findItem(R.id.click_map).setVisible(false);
+            menu.findItem(R.id.click_map_confirm).setVisible(true).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+            menu.findItem(R.id.log_out).setVisible(false);
+        } else {
+            menu.findItem(R.id.search).setVisible(true);
+            menu.findItem(R.id.manual_reroute).setVisible(true);
+            menu.findItem(R.id.connect_bt).setVisible(true);
+            menu.findItem(R.id.disconnect_bt).setVisible(true);
+            menu.findItem(R.id.scanning_bt).setVisible(true);
+            menu.findItem(R.id.click_map).setVisible(true);
+            menu.findItem(R.id.click_map_confirm).setVisible(false);
+            menu.findItem(R.id.log_out).setVisible(true);
+        }
+
+        if (mScanning) {
+            menu.findItem(R.id.scanning_bt).setVisible(true)
+                    .setActionView(R.layout.actionbar_indeterminate_progress)
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        } else {
+            menu.findItem(R.id.scanning_bt).setVisible(false);
+        }
+
+        if (isBtConnect) {
+            menu.findItem(R.id.connect_bt).setVisible(false);
+            menu.findItem(R.id.disconnect_bt).setVisible(true);
+        } else {
+            menu.findItem(R.id.connect_bt).setVisible(true);
+            menu.findItem(R.id.disconnect_bt).setVisible(false);
+        }
         return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
         if (id == R.id.search) {
             callPlaceAutocompleteActivityIntent();
@@ -535,13 +600,35 @@ public class MapsActivity extends AppCompatActivity implements
             sendBroadcast(i);
             return true;
         } else if (id == R.id.scanning_bt) {
-
+            //to wait until BLE is found.
             return true;
         } else if (id == R.id.click_map) {
-
+            isChoosingClickMap = true;
+            cleanUpMap();
+            pastInformation = information;
+            information = getResources().getString(R.string.click_map_info);
+            tvDebug.setText(information);
+            invalidateOptionsMenu();
             return true;
         } else if (id == R.id.click_map_confirm) {
-
+            isChoosingClickMap = false;
+            information = pastInformation;
+            tvDebug.setText(information);
+            invalidateOptionsMenu();
+            if (startLatLng != null && destinationLatLng != null) {
+                cleanUpMap();
+                new GetAsync().execute(
+                        String.valueOf(startLatLng.latitude),
+                        String.valueOf(startLatLng.longitude),
+                        String.valueOf(destinationLatLng.latitude),
+                        String.valueOf(destinationLatLng.longitude));
+                MarkerOptions markerOptions = new MarkerOptions()
+                        .position(destinationLatLng)
+                        .title("Destination")
+                        .draggable(true)
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.destination_icon));
+                destinationMarker = mMap.addMarker(markerOptions);
+            }
             return true;
         } else if (id == R.id.log_out) {
 

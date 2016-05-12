@@ -31,8 +31,14 @@
     <string name="scan_stopped">Scan stopped.</string>
     <string name="device_address_intent">DeviceAddressIntent</string>
     <string name="device_address_key">DeviceAddressKey</string>
-    <string name="connected_to">Connected to:&#032;</string>
+    <string name="hardware_found">Hardware found:&#160;</string>
+    <string name="connected_to">Connected to:&#160;</string>
+    <string name="disconnected">Disconnected.</string>
+    <string name="click_map_info">Click then drag the Marker on Map to choose destination location. Click OK when you are done.</string>
     <string name="device_disconnect_intent">DeviceDisconnectIntent</string>
+
+    <string name="ble_connect">BLEConnect</string>
+    <string name="ble_disconnect">BLEDisconnect</string>
 
     <string name="welcome">Welcome!</string>
     <string name="content1">First thing first. Create your own account.</string>
@@ -43,7 +49,6 @@
     <string name="confirm_password">Confirm Password</string>
     <string name="confirm_password_hint">Re-enter your password</string>
     <string name="create_account">Create Account</string>
-
 
     <string name="content2">Please enter your phone number. Once you click the button, we will send you a unique code to proceed to the next step.</string>
     <string name="enter_phone_number">Your Phone Number</string>

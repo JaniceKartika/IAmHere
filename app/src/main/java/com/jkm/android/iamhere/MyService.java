@@ -134,12 +134,18 @@ public class MyService extends Service implements
     private final ServiceConnection mServiceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder service) {
+            Log.i(TAG, "OnServiceConnected");
             mBLEService = ((BLEService.LocalBinder) service).getService();
             if (!mBLEService.initialize()) {
                 Log.e(TAG, "Unable to initialize Bluetooth");
             } else {
+                Log.i(TAG, "Try to connect to BLE.");
                 // Automatically connects to the device upon successful start-up initialization.
-                mBLEService.connect(mDeviceAddress);
+                if (mDeviceAddress != null) {
+                    mBLEService.connect(mDeviceAddress);
+                } else {
+                    Log.i(TAG, "Can't connect because address is null.");
+                }
             }
         }
 
@@ -161,8 +167,12 @@ public class MyService extends Service implements
             final String action = intent.getAction();
             if (BLEService.ACTION_GATT_CONNECTED.equals(action)) {
                 mConnected = true;
+                Intent i = new Intent(getResources().getString(R.string.ble_connect));
+                sendBroadcast(i);
             } else if (BLEService.ACTION_GATT_DISCONNECTED.equals(action)) {
                 mConnected = false;
+                Intent i = new Intent(getResources().getString(R.string.ble_disconnect));
+                sendBroadcast(i);
             } else if (BLEService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
                 GattServices(mBLEService.getSupportedGattServices());
             } else if (BLEService.ACTION_DATA_AVAILABLE.equals(action)) {

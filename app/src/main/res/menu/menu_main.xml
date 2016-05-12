@@ -14,7 +14,7 @@
         android:id="@+id/manual_reroute"
         android:icon="@drawable/manual_reroute"
         android:title="@string/manual_reroute"
-        app:showAsAction="collapseActionView" />
+        app:showAsAction="ifRoom" />
 
     <item
         android:id="@+id/connect_bt"
