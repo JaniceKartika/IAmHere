@@ -49,16 +49,22 @@
     <string name="confirm_password">Confirm Password</string>
     <string name="confirm_password_hint">Re-enter your password</string>
     <string name="create_account">Create Account</string>
+    <string name="username_failed">Invalid username</string>
+    <string name="password_failed">Too short</string>
+    <string name="cpassword_failed">Unequal</string>
+    <string name="reg1_valid">Reg1Valid</string>
 
     <string name="content2">Please enter your phone number. Once you click the button, we will send you a unique code to proceed to the next step.</string>
     <string name="enter_phone_number">Your Phone Number</string>
     <string name="phone_number">Enter phone number</string>
     <string name="ina_code">+62</string>
     <string name="send_code">Send Code</string>
+    <string name="reg2_valid">Reg2Valid</string>
 
     <string name="content3">We will try to register your hardware. Please make sure your hardware is already turned on before clicking Connect button.</string>
     <string name="connect">Connect</string>
     <string name="reset">Reset</string>
+    <string name="reg3_valid">Reg3Valid</string>
 
     <string name="username_hint">Enter your username</string>
     <string name="password_hint">Enter your password</string>

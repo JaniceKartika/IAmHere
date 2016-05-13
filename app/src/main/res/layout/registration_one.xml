@@ -36,7 +36,6 @@
             android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/tv_reg1_username"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/username"
@@ -49,7 +48,6 @@
                 android:id="@+id/tv_reg1_username_failed"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginLeft="20dp"
                 android:layout_marginStart="20dp"
                 android:textColor="@color/textFalse"
                 android:textSize="@dimen/body_textsize"
@@ -70,7 +68,6 @@
             android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/tv_reg1_password"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:paddingTop="10dp"
@@ -84,7 +81,6 @@
                 android:id="@+id/tv_reg1_password_failed"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginLeft="20dp"
                 android:layout_marginStart="20dp"
                 android:textColor="@color/textFalse"
                 android:textSize="@dimen/body_textsize"
@@ -106,7 +102,6 @@
             android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/tv_reg1_confirm_password"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:paddingTop="10dp"
@@ -120,7 +115,6 @@
                 android:id="@+id/tv_reg1_confirm_password_failed"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginLeft="20dp"
                 android:layout_marginStart="20dp"
                 android:textColor="@color/textFalse"
                 android:textSize="@dimen/body_textsize"
