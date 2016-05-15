@@ -59,6 +59,8 @@
     <string name="ina_code">+62</string>
     <string name="send_code">Send Code</string>
     <string name="reg2_valid">Reg2Valid</string>
+    <string name="otp_key">OTP</string>
+    <string name="phone_number_key">PhoneNumber</string>
 
     <string name="content3">We will try to register your hardware. Please make sure your hardware is already turned on before clicking Connect button.</string>
     <string name="connect">Connect</string>

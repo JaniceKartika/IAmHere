@@ -156,7 +156,7 @@ public class RegistrationOne extends AppCompatActivity {
         JSONParser jsonParser = new JSONParser();
         private ProgressDialog pDialog;
 
-        private static final String LOGIN_URL = "http://192.168.43.123:8000/find_my_way/fmw_db_registration_one.php";
+        private static final String URL_REG_ONE = "http://192.168.43.123:8000/find_my_way/fmw_db_registration_one.php";
         private static final String TAG_SUCCESS = "success";
         private static final String TAG_MESSAGE = "message";
 
@@ -179,7 +179,7 @@ public class RegistrationOne extends AppCompatActivity {
                 params.put("username", args[0]);
                 params.put("userPassword", args[1]);
 
-                JSONObject json = jsonParser.makeHttpRequest(LOGIN_URL, "GET", params);
+                JSONObject json = jsonParser.makeHttpRequest(URL_REG_ONE, "GET", params);
                 if (json != null) {
                     Log.d(TAG, json.toString());
                     success = json.getInt(TAG_SUCCESS);

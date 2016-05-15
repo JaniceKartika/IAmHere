@@ -69,5 +69,14 @@
             android:textAllCaps="true"
             android:textColor="@color/text"
             android:textSize="@dimen/body_textsize" />
+
+        <ProgressBar
+            android:id="@+id/pb_reg2"
+            style="?android:attr/progressBarStyleSmall"
+            android:layout_width="35dp"
+            android:layout_height="35dp"
+            android:layout_margin="7dp"
+            android:indeterminate="true"
+            android:visibility="gone" />
     </LinearLayout>
 </ScrollView>
