@@ -39,9 +39,11 @@
 
             <EditText
                 android:id="@+id/et_reg2_phone_code"
-                android:layout_width="40dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:inputType="phone"
+                android:labelFor="@id/et_reg2_phone_code"
+                android:maxLength="4"
                 android:text="@string/ina_code"
                 android:textColor="@color/textColorPrimary"
                 android:textSize="@dimen/body_textsize" />

@@ -1,4 +1,4 @@
-package com.jkm.android.iamhere;
+package com.jkm.android.iamhere.activity;
 
 import android.app.ProgressDialog;
 import android.content.Intent;
@@ -15,6 +15,9 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.jkm.android.iamhere.helper.JSONParser;
+import com.jkm.android.iamhere.R;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -153,7 +156,7 @@ public class RegistrationOne extends AppCompatActivity {
         JSONParser jsonParser = new JSONParser();
         private ProgressDialog pDialog;
 
-        private static final String LOGIN_URL = "http://172.16.92.40:8000/find_my_way/fmw_db_registration_one.php";
+        private static final String LOGIN_URL = "http://192.168.43.123:8000/find_my_way/fmw_db_registration_one.php";
         private static final String TAG_SUCCESS = "success";
         private static final String TAG_MESSAGE = "message";
 

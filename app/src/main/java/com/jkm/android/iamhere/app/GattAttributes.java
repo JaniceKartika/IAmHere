@@ -1,4 +1,4 @@
-package com.jkm.android.iamhere;
+package com.jkm.android.iamhere.app;
 
 import java.util.HashMap;
 

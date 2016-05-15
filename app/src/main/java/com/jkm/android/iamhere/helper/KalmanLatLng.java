@@ -1,4 +1,4 @@
-package com.jkm.android.iamhere;
+package com.jkm.android.iamhere.helper;
 
 import com.google.android.gms.maps.model.LatLng;
 

@@ -1,4 +1,4 @@
-package com.jkm.android.iamhere;
+package com.jkm.android.iamhere.activity;
 
 import android.Manifest;
 import android.app.Activity;
@@ -58,6 +58,9 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
+import com.jkm.android.iamhere.helper.JSONParser;
+import com.jkm.android.iamhere.service.MyService;
+import com.jkm.android.iamhere.R;
 
 import org.json.JSONArray;
 import org.json.JSONException;

@@ -1,4 +1,4 @@
-package com.jkm.android.iamhere;
+package com.jkm.android.iamhere.service;
 
 import android.Manifest;
 import android.app.Activity;
@@ -28,6 +28,8 @@ import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.model.LatLng;
+import com.jkm.android.iamhere.R;
+import com.jkm.android.iamhere.helper.KalmanLatLng;
 
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -6,11 +6,6 @@
         android:name="android.hardware.bluetooth_le"
         android:required="true" />
 
-    <!--
-         The ACCESS_COARSE/FINE_LOCATION permissions are not required to use
-         Google Maps Android API v2, but you must specify either coarse or fine
-         location permissions for the 'MyLocation' functionality. 
-    -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -38,7 +33,7 @@
             android:value="@string/google_maps_key" />
 
         <activity
-            android:name=".RegistrationOne"
+            android:name=".activity.RegistrationOne"
             android:theme="@style/AppTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -46,7 +41,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".RegistrationTwo"
+            android:name=".activity.RegistrationTwo"
             android:label="@string/phone_verification"
             android:theme="@style/AppTheme">
             <intent-filter>
@@ -55,7 +50,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".RegistrationThree"
+            android:name=".activity.RegistrationThree"
             android:label="@string/hardware_verification"
             android:theme="@style/AppTheme">
             <intent-filter>
@@ -64,7 +59,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".Authentication"
+            android:name=".activity.Authentication"
             android:label="@string/log_in"
             android:theme="@style/AppTheme">
             <intent-filter>
@@ -73,7 +68,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".MapsActivity"
+            android:name=".activity.MapsActivity"
             android:label="@string/title_activity_maps"
             android:theme="@style/AppThemeMap">
             <intent-filter>
@@ -82,9 +77,9 @@
             </intent-filter>
         </activity>
 
-        <service android:name=".MyService" />
+        <service android:name=".service.MyService" />
         <service
-            android:name=".BLEService"
+            android:name=".service.BLEService"
             android:enabled="true" />
     </application>
 </manifest>
