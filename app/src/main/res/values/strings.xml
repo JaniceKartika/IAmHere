@@ -52,6 +52,7 @@
     <string name="password_failed">Too short</string>
     <string name="cpassword_failed">Unequal</string>
     <string name="reg1_valid">Reg1Valid</string>
+    <string name="already_have_account">Already have an account?</string>
 
     <string name="content2">Please enter your phone number. Once you click the button, we will send you a unique code to proceed to the next step.</string>
     <string name="enter_phone_number">Your Phone Number</string>
@@ -65,10 +66,14 @@
     <string name="content3">We will try to register your hardware. Please make sure your hardware is already turned on before clicking Connect button.</string>
     <string name="connect">Connect</string>
     <string name="reg3_valid">Reg3Valid</string>
+    <string name="bt_name">HMSoft</string>
+    <string name="bt_address">BTAddress</string>
+    <string name="set_complete">Now you are set! Let\'s&#160;</string>
 
     <string name="username_hint">Enter your username</string>
     <string name="password_hint">Enter your password</string>
     <string name="content4">Doesn\'t have an account?</string>
+    <string name="keep_login">KeepLogIn</string>
 
     <string-array name="country_phone_codes">
         <item>93,AF</item>

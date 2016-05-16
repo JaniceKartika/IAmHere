@@ -142,5 +142,25 @@
             android:textAllCaps="true"
             android:textColor="@color/text"
             android:textSize="@dimen/body_textsize" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginTop="30dp"
+            android:text="@string/already_have_account"
+            android:textColor="@color/textColorPrimary"
+            android:textSize="@dimen/body_textsize" />
+
+        <TextView
+            android:id="@+id/tv_to_log_in"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="@string/log_in"
+            android:textAllCaps="true"
+            android:textColor="@color/colorPrimary"
+            android:textSize="@dimen/body_textsize"
+            android:textStyle="bold" />
     </LinearLayout>
 </ScrollView>

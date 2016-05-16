@@ -106,7 +106,7 @@ public class MapsActivity extends AppCompatActivity implements
     Polyline PolylineRoute;
 
     private BluetoothAdapter mBluetoothAdapter;
-    boolean mScanning;
+    boolean mScanning = false;
     private Handler mHandler;
     private Runnable mRunnable;
     private static final int REQUEST_ENABLE_BT = 1;
@@ -248,15 +248,17 @@ public class MapsActivity extends AppCompatActivity implements
     private BluetoothAdapter.LeScanCallback mLeScanCallback = new BluetoothAdapter.LeScanCallback() {
         @Override
         public void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord) {
-            //TODO filter bluetooth address
+            String myAddress = loadSavedPreferencesString(getResources().getString(R.string.bt_address));
             mDeviceAddress = device.getAddress();
-            scanLeDevice(false);
-            mHandler.removeCallbacks(mRunnable);
-            Intent i = new Intent(getResources().getString(R.string.device_address_intent));
-            i.putExtra(getResources().getString(R.string.device_address_key), mDeviceAddress);
-            sendBroadcast(i);
-            information = getResources().getString(R.string.hardware_found) + mDeviceAddress;
-            tvDebug.setText(information);
+            if (mDeviceAddress.equals(myAddress)) {
+                scanLeDevice(false);
+                mHandler.removeCallbacks(mRunnable);
+                Intent i = new Intent(getResources().getString(R.string.device_address_intent));
+                i.putExtra(getResources().getString(R.string.device_address_key), mDeviceAddress);
+                sendBroadcast(i);
+                information = getResources().getString(R.string.hardware_found) + mDeviceAddress;
+                tvDebug.setText(information);
+            }
         }
     };
 
@@ -299,6 +301,7 @@ public class MapsActivity extends AppCompatActivity implements
             LatLng checkpointLatLng = new LatLng(lat, lng);
             if (checkpointLatLng.latitude != 0 && checkpointLatLng.longitude != 0) {
                 if (i == checkpointDistanceLat.size() - 1) {
+                    destinationLatLng = checkpointLatLng;
                     MarkerOptions markerOptions = new MarkerOptions()
                             .position(checkpointLatLng)
                             .title("Destination")
@@ -634,7 +637,17 @@ public class MapsActivity extends AppCompatActivity implements
             }
             return true;
         } else if (id == R.id.log_out) {
-
+            //Flag keep Log In
+            savePreferences(getResources().getString(R.string.keep_login), "FALSE");
+            //Stop MyService
+            stopService(new Intent(this, MyService.class));
+            //Disconnect BLE
+            Intent disconnectBT = new Intent(getResources().getString(R.string.device_disconnect_intent));
+            sendBroadcast(disconnectBT);
+            //Back to Log In Screen
+            Intent i = new Intent(getApplicationContext(), Authentication.class);
+            startActivity(i);
+            finish();
             return true;
         }
         return super.onOptionsItemSelected(item);

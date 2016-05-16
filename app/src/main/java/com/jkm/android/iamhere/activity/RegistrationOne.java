@@ -27,7 +27,7 @@ import java.util.HashMap;
 public class RegistrationOne extends AppCompatActivity {
     private static final String TAG = RegistrationOne.class.getSimpleName();
 
-    TextView tvUsernameFailed, tvPasswordFailed, tvConfirmPasswordFailed;
+    TextView tvUsernameFailed, tvPasswordFailed, tvConfirmPasswordFailed, tvToLogIn;
     EditText etUsername, etPassword, etConfirmPassword;
     Button btCreateAccount;
     String username, password;
@@ -54,6 +54,7 @@ public class RegistrationOne extends AppCompatActivity {
         etPassword = (EditText) findViewById(R.id.et_reg1_password);
         etConfirmPassword = (EditText) findViewById(R.id.et_reg1_confirm_password);
         btCreateAccount = (Button) findViewById(R.id.bt_reg1_create);
+        tvToLogIn = (TextView) findViewById(R.id.tv_to_log_in);
 
         btCreateAccount.setEnabled(false);
 
@@ -150,6 +151,18 @@ public class RegistrationOne extends AppCompatActivity {
                 new GetAsync().execute("\"" + username + "\"", "\"" + password + "\"");
             }
         });
+
+        tvToLogIn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                savePreferences(getResources().getString(R.string.reg1_valid), "VALID");
+                savePreferences(getResources().getString(R.string.reg2_valid), "VALID");
+                savePreferences(getResources().getString(R.string.reg3_valid), "VALID");
+                Intent i = new Intent(getApplicationContext(), Authentication.class);
+                startActivity(i);
+                finish();
+            }
+        });
     }
 
     class GetAsync extends AsyncTask<String, String, JSONObject> {
@@ -212,7 +225,7 @@ public class RegistrationOne extends AppCompatActivity {
             } else if (success == 0) {
                 Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
             } else if (success == -1) {
-                Toast.makeText(getApplicationContext(), "Can't connect to database.", Toast.LENGTH_LONG).show();
+                Toast.makeText(getApplicationContext(), "Can't connect to database", Toast.LENGTH_LONG).show();
             }
         }
     }
