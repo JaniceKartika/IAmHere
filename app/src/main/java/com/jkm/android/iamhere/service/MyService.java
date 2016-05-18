@@ -240,14 +240,12 @@ public class MyService extends Service implements
         LatLng startLatLng, distanceEndLatLng, bearingEndLatLng;
         double nextBLat = 0, nextBLng = 0;
         Location nextBearing = new Location("NextBearing");
-
-        double dlat = Double.valueOf(checkpointDistanceLat.get(distanceCount));
-        double dlng = Double.valueOf(checkpointDistanceLng.get(distanceCount));
-
-        if (dlat != 0 && dlng != 0) {
-            double blat = Double.valueOf(checkpointBearingLat.get(bearingCount));
-            double blng = Double.valueOf(checkpointBearingLng.get(bearingCount));
+        if (!checkpointDistanceLat.toString().equals("[0]") && !checkpointDistanceLng.toString().equals("[0]")) {
             if (distanceCount < checkpointDistanceLat.size() && bearingCount < checkpointBearingLat.size()) {
+                double dlat = Double.valueOf(checkpointDistanceLat.get(distanceCount));
+                double dlng = Double.valueOf(checkpointDistanceLng.get(distanceCount));
+                double blat = Double.valueOf(checkpointBearingLat.get(bearingCount));
+                double blng = Double.valueOf(checkpointBearingLng.get(bearingCount));
                 if (bearingCount < checkpointBearingLat.size() - 1) {
                     nextBLat = Double.valueOf(checkpointBearingLat.get(bearingCount + 1));
                     nextBLng = Double.valueOf(checkpointBearingLng.get(bearingCount + 1));
@@ -276,7 +274,7 @@ public class MyService extends Service implements
                 intDistance = (int) distance;
                 intDirection = (int) (bearing - declination);
 
-                sendData = "#" + intDistance + "," + intDirection + "\n";
+                sendData = "#" + distanceCount + "@" + intDistance + "," + intDirection + "\n";
                 final byte[] tx = sendData.getBytes();
                 if (mConnected) {
                     characteristicTX.setValue(tx);
@@ -293,9 +291,9 @@ public class MyService extends Service implements
                 if (distance <= 20) {
                     distanceCount++;
                 }
-                if (distanceToCheckpointBearing <= 10) {
+                if (distanceToCheckpointBearing <= 15) {
                     float inspectBearingDistance = checkpointBearing.distanceTo(nextBearing);
-                    if (inspectBearingDistance <= 10.0) bearingCount += 2;
+                    if (inspectBearingDistance <= 15.0) bearingCount += 2;
                     else bearingCount++;
                 }
             } else {
