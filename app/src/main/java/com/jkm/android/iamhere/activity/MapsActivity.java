@@ -684,12 +684,13 @@ public class MapsActivity extends AppCompatActivity implements
                 Place place = PlaceAutocomplete.getPlace(this, data);
                 Log.i(TAG, "Place: " + place.getName() + ", LatLng = " + place.getLatLng());
                 destinationLatLng = new LatLng(place.getLatLng().latitude, place.getLatLng().longitude);
-                new GetAsync().execute(
-                        String.valueOf(startLatLng.latitude),
-                        String.valueOf(startLatLng.longitude),
-                        String.valueOf(destinationLatLng.latitude),
-                        String.valueOf(destinationLatLng.longitude));
-
+                if (startLatLng != null) {
+                    new GetAsync().execute(
+                            String.valueOf(startLatLng.latitude),
+                            String.valueOf(startLatLng.longitude),
+                            String.valueOf(destinationLatLng.latitude),
+                            String.valueOf(destinationLatLng.longitude));
+                }
                 cleanUpMap();
                 MarkerOptions markerOptions = new MarkerOptions()
                         .position(destinationLatLng)
@@ -776,6 +777,8 @@ public class MapsActivity extends AppCompatActivity implements
             checkpointBearingLng.clear();
             checkpointDistanceLat.clear();
             checkpointDistanceLng.clear();
+            Intent i = new Intent(getResources().getString(R.string.start_routing_intent));
+            sendBroadcast(i);
         }
 
         @Override

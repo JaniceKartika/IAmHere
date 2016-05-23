@@ -50,6 +50,7 @@ public class MyService extends Service implements
     int distanceCount = 0, bearingCount = 0;
     boolean hasDeclination = false;
     float declination = 0;
+    String sendData;
 
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
     private GoogleApiClient mGoogleApiClient;
@@ -188,6 +189,14 @@ public class MyService extends Service implements
             } else if (getResources().getString(R.string.device_disconnect_intent).equals(action)) {
                 if (mConnected)
                     mBLEService.disconnect();
+            } else if (getResources().getString(R.string.start_routing_intent).equals(action)) {
+                sendData = "#-1@0,0\n";
+                final byte[] tx = sendData.getBytes();
+                if (mConnected) {
+                    characteristicTX.setValue(tx);
+                    mBLEService.writeCharacteristic(characteristicTX);
+                    mBLEService.setCharacteristicNotification(characteristicRX, true);
+                }
             }
         }
     };
@@ -234,7 +243,6 @@ public class MyService extends Service implements
     private void SendDataToHardware(Location startingPoint,
                                     ArrayList<String> checkpointDistanceLat, ArrayList<String> checkpointDistanceLng,
                                     ArrayList<String> checkpointBearingLat, ArrayList<String> checkpointBearingLng) {
-        String sendData;
         float distance, bearing;
         int intDistance, intDirection;
         LatLng startLatLng, distanceEndLatLng, bearingEndLatLng;
@@ -291,12 +299,21 @@ public class MyService extends Service implements
                 if (distance <= 20) {
                     distanceCount++;
                 }
-                if (distanceToCheckpointBearing <= 15) {
+                if (distanceToCheckpointBearing <= 50) {
                     float inspectBearingDistance = checkpointBearing.distanceTo(nextBearing);
-                    if (inspectBearingDistance <= 15.0) bearingCount += 2;
+                    if (inspectBearingDistance <= 50.0) bearingCount += 2;
                     else bearingCount++;
                 }
             } else {
+                //Send notification to hardware
+                sendData = "#-1@-1,-1\n";
+                final byte[] tx = sendData.getBytes();
+                if (mConnected) {
+                    characteristicTX.setValue(tx);
+                    mBLEService.writeCharacteristic(characteristicTX);
+                    mBLEService.setCharacteristicNotification(characteristicRX, true);
+                }
+                //Update UI
                 String complete = "Navigation has finished.";
                 Intent i = new Intent(getResources().getString(R.string.data_sent_intent));
                 i.putExtra(getResources().getString(R.string.data_sent_key), complete);
